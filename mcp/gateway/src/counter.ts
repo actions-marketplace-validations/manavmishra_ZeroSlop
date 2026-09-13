@@ -2,6 +2,7 @@ import type { PipelineResult } from "./types";
 import type { McpRequestMeta } from "./telemetry";
 import { EditorBudgetStore } from "./budget";
 import { readBoundedJson } from "./bounded-json";
+import { RequestLedgerStore } from "./request-ledger";
 
 const COUNTER_ORIGIN = "https://counter.internal";
 const LEGACY_COUNTER_NAME = "global";
@@ -105,6 +106,7 @@ export class McpCounter {
   private readonly storage: DurableObjectStorage;
   private readonly sql: SqlStorage;
   private budget: EditorBudgetStore | undefined;
+  private requestLedger: RequestLedgerStore | undefined;
 
   constructor(state: DurableObjectState, private readonly env: Env) {
     this.storage = state.storage;
@@ -193,6 +195,14 @@ export class McpCounter {
 
   async fetch(request: Request): Promise<Response> {
     const url = new URL(request.url);
+    if (url.pathname === "/request-ledger/event" || url.pathname === "/request-ledger/receipt") {
+      try {
+        this.requestLedger ??= new RequestLedgerStore(this.storage);
+        return await this.requestLedger.fetch(request);
+      } catch {
+        return Response.json({ error: "request_ledger_unavailable" }, { status: 503 });
+      }
+    }
     if (request.method === "POST" && url.pathname === "/reserve-editor") {
       try {
         const input = await readBoundedJson(new Response(request.body, { headers: request.headers }), 512);
@@ -227,7 +237,14 @@ export class McpCounter {
 
   async alarm(): Promise<void> {
     this.budget ??= new EditorBudgetStore(this.storage, this.env);
-    this.budget.cleanup();
+    const now = Date.now();
+    this.budget.cleanup(now);
+    this.requestLedger ??= new RequestLedgerStore(this.storage);
+    this.requestLedger.cleanup(now);
+    // An earlier ledger alarm must not consume the budget's midnight cleanup.
+    const budgetActive = this.sql.exec("SELECT 1 FROM editor_budget_days LIMIT 1").toArray().length > 0;
+    const nextDay = (Math.floor(now / 86_400_000) + 1) * 86_400_000;
+    await this.requestLedger.scheduleCleanup(budgetActive ? nextDay : null, now);
   }
 }
 

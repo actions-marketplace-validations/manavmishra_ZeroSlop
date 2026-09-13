@@ -15,8 +15,24 @@ class RuntimeCompatibilityTests(unittest.TestCase):
     def test_exact_reviewed_pair_matches(self):
         self.assertTrue(exact_code_compatible("2.11.6", "2.12.0"))
 
+    def test_new_exact_pair_matches_without_relabelling_history(self):
+        self.assertTrue(exact_code_compatible("2.11.6", "2.12.1"))
+        old = {"scorer": {"version": "2.11.6"}, "score": 12}
+        new = {"scorer": {"version": "2.12.1"}, "score": 12}
+        before = copy.deepcopy((old, new))
+        self.assertTrue(reports_match(old, new))
+        self.assertEqual((old, new), before)
+        new["score"] = 13
+        self.assertFalse(reports_match(old, new))
+
+    def test_manifests_cannot_be_used_for_another_pair(self):
+        new_evidence = EVIDENCE.with_name("runtime-compatibility-2.12.1.json")
+        self.assertFalse(exact_code_compatible("2.11.6", "2.12.1", evidence_path=EVIDENCE))
+        self.assertFalse(exact_code_compatible("2.11.6", "2.12.0", evidence_path=new_evidence))
+
     def test_unknown_or_reversed_versions_rejected(self):
-        for pair in [("2.11.5", "2.12.0"), ("2.11.6", "2.12.1"),
+        for pair in [("2.11.5", "2.12.0"), ("2.11.6", "2.12.2"),
+                     ("2.12.0", "2.12.1"), ("2.12.1", "2.11.6"),
                      ("2.12.0", "2.11.6"), ("2.11.6", "2.11.6"),
                      (None, "2.12.0")]:
             with self.subTest(pair=pair):
@@ -29,13 +45,15 @@ class RuntimeCompatibilityTests(unittest.TestCase):
                 target = root / name
                 target.parent.mkdir(parents=True, exist_ok=True)
                 shutil.copyfile(ROOT / name, target)
-            self.assertTrue(exact_code_compatible("2.11.6", "2.12.0", root=root))
+            for version in ("2.12.0", "2.12.1"):
+                self.assertTrue(exact_code_compatible("2.11.6", version, root=root))
             for name in PINNED_FILES:
                 with self.subTest(file=name):
                     target = root / name
                     original = target.read_bytes()
                     target.write_bytes(original + b"\n")
-                    self.assertFalse(exact_code_compatible("2.11.6", "2.12.0", root=root))
+                    for version in ("2.12.0", "2.12.1"):
+                        self.assertFalse(exact_code_compatible("2.11.6", version, root=root))
                     target.write_bytes(original)
 
     def test_missing_files_rejected(self):

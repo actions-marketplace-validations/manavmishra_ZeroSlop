@@ -11,6 +11,10 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 EVIDENCE = Path(__file__).with_name("runtime-compatibility.json")
+PAIR_EVIDENCE = {
+    ("2.11.6", "2.12.0"): EVIDENCE,
+    ("2.11.6", "2.12.1"): Path(__file__).with_name("runtime-compatibility-2.12.1.json"),
+}
 PINNED_FILES = frozenset({
     "scripts/slopscore.py", "scripts/register.py", "scripts/rerank.py",
     "scripts/safeio.py", "scripts/predictability.py",
@@ -18,12 +22,13 @@ PINNED_FILES = frozenset({
 })
 
 
-def exact_code_compatible(measured_version, current_version, *, root=ROOT, evidence_path=EVIDENCE):
-    """True only for the reviewed 2.11.6 -> 2.12.0 pair and all exact hashes."""
-    if (measured_version, current_version) != ("2.11.6", "2.12.0"):
-        return False
+def exact_code_compatible(measured_version, current_version, *, root=ROOT, evidence_path=None):
+    """True only for an explicitly reviewed pair and its complete exact hashes."""
     try:
-        evidence = json.loads(Path(evidence_path).read_text())
+        selected = PAIR_EVIDENCE.get((measured_version, current_version))
+        if selected is None:
+            return False
+        evidence = json.loads(Path(selected if evidence_path is None else evidence_path).read_text())
         if (evidence.get("schema") != 1
                 or evidence.get("result_kind") != "exact_code_equivalence_not_new_measurement"
                 or evidence.get("measured_version") != measured_version
