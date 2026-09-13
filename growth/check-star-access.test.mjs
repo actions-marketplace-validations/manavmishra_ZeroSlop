@@ -13,7 +13,7 @@ const page = (rows, next = false) => new Response(JSON.stringify(rows), {
 
 async function run(responses, token = privateValue) {
   const calls = [], stdout = [], stderr = [];
-  const process = { env: token === undefined ? {} : { GITHUB_TOKEN: token }, exitCode: undefined };
+  const process = { env: token == null ? {} : { GITHUB_TOKEN: token }, exitCode: undefined };
   const context = vm.createContext({
     assert, process, AbortSignal, TextDecoder,
     console: { log: (...args) => stdout.push(args.join(' ')), error: (...args) => stderr.push(args.join(' ')) },
@@ -80,7 +80,7 @@ test('rejects duplicate IDs across pages', async () => {
 });
 
 test('missing token fails before making a request', async () => {
-  const result = await run([], '');
+  const result = await run([], null);
   failed(result);
   assert.equal(result.calls.length, 0);
 });
