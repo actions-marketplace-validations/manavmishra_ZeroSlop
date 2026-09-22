@@ -22,7 +22,7 @@ Zero Slop is a free, open-source agent skill that finds and removes AI slop whil
 
 ## Why it exists
 
-An AI draft can be grammatically sound and still read like workslop. In a compatible AI assistant, Zero Slop flags stock phrasing and stiff patterns, then guides the edit. The writing score finds patterns worth reviewing; it cannot tell who wrote the text.
+An AI draft can be grammatically sound and still read like workslop. In a compatible AI assistant, Zero Slop flags slop patterns, then guides the edit. The writing score finds patterns worth reviewing; it cannot tell who wrote the text.
 
 <a href="assets/zero-slop-demo.mp4?v=dark-shell-restored-20260906">
   <picture>
@@ -34,14 +34,13 @@ An AI draft can be grammatically sound and still read like workslop. In a compat
 
 ## See an edit
 
-Let's see Zero Slop at work. Imagine using AI to write a launch announcement and getting this:
+Let's see Zero Slop at work. Imagine using AI to write a linkedin launch announcement and getting this:
 
 > We're thrilled to announce that our team has leveraged cutting-edge machine learning to deliver a seamless onboarding experience, reducing setup time by 40%.
 
-The local Python scorer in Zero Slop scores it 99.3/100. A high Slop score means the draft is more likely to contain sloppy patterns. It flags “We're thrilled
-to,” “leveraged,” “cutting-edge,” and “seamless” as patterns worth reviewing.
+The local Python scorer in Zero Slop scores the input Slop score 99.3/100. A high Slop score means the draft is more likely to contain sloppy patterns. 
 
-An edit that keeps the stated result:
+Zero Slop then strips the patterns and guides the AI agent to produce the deslopped output below:
 
 > We used machine learning to reduce onboarding setup time by 40%.
 
