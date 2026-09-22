@@ -7,19 +7,17 @@
   </a>
 </p>
 
-      Zero Slop is installed about 1,600 times a week on npm.
-
-<p align="center"><strong>Find AI-sounding tells and slop in your writing.</strong></p>
+<p align="center"><strong>Edit AI-assisted writing without losing the details.</strong></p>
 
 <p align="center">
-  Zero Slop finds slop- stock phrasing, mechanical rhythm, vague claims, and canned formatting in writing.<br>
-  Your existing AI assistant edits the draft; local checks guard its names, numbers, links, quotations, code, tables, and paths.
+  Zero Slop is an open-source skill that finds stock phrases, repetition, vague claims, and mechanical rhythm.<br>
+  Your AI assistant edits the draft. Local tools check its names, numbers, links, quotations, code, tables, and paths against the original.
 </p>
 
 <p align="center">
   <a href="https://zero-slop.ai/try/"><strong>Try it in your browser</strong></a>
   ·
-  <a href="#install">Install the skill</a>
+  <a href="#quick-start">Install the skill</a>
   ·
   <a href="#evidence-and-limits">See the evidence</a>
   ·
@@ -38,10 +36,6 @@
   <a href="https://hol.org/registry/plugins/manav-mishra%2Fzero-slop"><img alt="Listed in the HOL plugin registry" src="https://img.shields.io/badge/HOL%20registry-listed-2C6E8F"></a>
 </p>
 
-```sh
-npx skills add manavmishra/ZeroSlop --global
-```
-
 <a href="assets/zero-slop-demo.mp4?v=dark-shell-restored-20260906">
   <picture>
     <source media="(prefers-reduced-motion: reduce)" srcset="assets/zero-slop-demo-poster.png?v=dark-shell-restored-20260906">
@@ -50,18 +44,16 @@ npx skills add manavmishra/ZeroSlop --global
   </picture>
 </a>
 
+## See an edit
 
-
-## Before and after
-
-A launch post, as AI wrote it:
+Here is a short launch draft:
 
 > We're thrilled to announce that our team has leveraged cutting-edge machine learning to deliver a seamless onboarding experience, reducing setup time by 40%.
 
-The scorer rates that draft 99.3/100 and flags four phrases: “We're thrilled
+The local scorer rates it 99.3/100. Lower is better. It flags “We're thrilled
 to,” “leveraged,” “cutting-edge,” and “seamless.”
 
-The rewrite, limited to the draft's stated claims:
+An edit that keeps the stated result:
 
 > We used machine learning to reduce onboarding setup time by 40%.
 
@@ -70,14 +62,25 @@ Writing score: 9.5/100  [clear]
   Flagged phrases : 0 across 10 words
 ```
 
-The rewrite retains the draft's stated result. See four complete, reproducible pairs in [`examples/`](examples/).
+The result still claims a 40% reduction in setup time. Scores describe writing patterns; they cannot identify the author. See four complete pairs in [`examples/`](examples/).
 
-Use it for launch posts, changelogs, emails, research summaries, or batch checks.
-Scores describe writing patterns, not authorship.
+Use it on launch posts, changelogs, emails, or research summaries. You can score drafts without editing.
 
-## Install
+## Quick start
 
-[Try the free browser editor](https://zero-slop.ai/try/), or install:
+Install it in an assistant that supports skills:
+
+```sh
+npx skills add manavmishra/ZeroSlop --global
+```
+
+```text
+/zero-slop (your writing)
+```
+
+To inspect without rewriting, use `/zero-slop inspect (your writing)`. Or [try the browser editor](https://zero-slop.ai/try/).
+
+### Other ways to use it
 
 | Environment | Fastest route |
 |---|---|
@@ -88,33 +91,21 @@ Scores describe writing patterns, not authorship.
 | Claude.ai | Upload the [latest skill ZIP](https://github.com/manavmishra/ZeroSlop/releases/latest/download/zero-slop.zip) |
 | ChatGPT, Claude, Grok, Gemini, Cursor, or another MCP client | Connect the optional [hosted MCP server](mcp/README.md) |
 
-Ask your assistant to edit:
-
-```text
-/zero-slop (your writing)
-```
-
-Inspect without editing:
-
-```text
-/zero-slop inspect (your writing)
-```
-
-Score locally:
+For a local score without a model call:
 
 ```sh
 npx zero-slop score draft.md
 ```
 
-From a cloned checkout, gate a folder:
+From a cloned checkout, check a folder against the review threshold of 25:
 
 ```sh
 python3 scripts/slopscore.py --batch drafts/ --gate 25
 ```
 
-Installed checks run locally. Skill editing follows your assistant's privacy settings; [MCP editing is remote](mcp/README.md).
+Installed checks run locally; skill editing follows your assistant's privacy settings. The [hosted MCP service](mcp/README.md) and browser editor process drafts remotely with Workers AI.
 
-### Hosted MCP
+For an MCP client, use this endpoint:
 
 ```text
 https://mcp.zero-slop.ai/mcp
@@ -122,19 +113,17 @@ https://mcp.zero-slop.ai/mcp
 
 [Connection options and listing status](DISTRIBUTION.md).
 
-## CLI
+## Edit from the command line
 
-Edit a file through MCP:
+The CLI sends a file to the hosted editor without changing the file on disk:
 
 ```sh
 npx --yes zero-slop@2.12.1 deslop draft.md --genre professional
 ```
 
-Use `-` for stdin and `--json` for structured output. `--require-approved` exits nonzero
-when review is needed; the result is still printed. Files stay unchanged. Node.js 22+;
-offline `score` also needs Python 3. [CLI reference and privacy](docs/cli.md).
+Use `-` for stdin and `--json` for structured output. `--require-approved` prints the result but exits nonzero when review is needed. Requires Node.js 22+; offline `score` also needs Python 3. [CLI options and privacy](docs/cli.md).
 
-## REST API
+## Call the REST API
 
 ```sh
 curl --fail-with-body --max-time 75 https://mcp.zero-slop.ai/v1/deslop \
@@ -142,50 +131,36 @@ curl --fail-with-body --max-time 75 https://mcp.zero-slop.ai/v1/deslop \
   --data '{"text":"Maya owns the pricing review.","genre":"professional"}'
 ```
 
-Same pipeline and result as MCP. Check `status` before using the edit. Free, shared
-capacity; up to 20,000 Unicode code points per draft after trimming. Hosted CLI
-editing and REST process drafts remotely without storing them.
+REST returns the same result as MCP. Check `status` before using an edit. Shared free capacity accepts up to 20,000 Unicode code points after trimming. Hosted CLI and REST editing process drafts remotely without storing them.
 
 [API reference](docs/rest-api.md) · [OpenAPI contract](https://mcp.zero-slop.ai/openapi.json)
 
-## What the workflow adds
+## What it does
 
-| A prompt alone | Zero Slop |
-|---|---|
-| “Make this sound human” leaves the target vague. | A 0–100 meter points to exact phrases and structural problems. |
-| One rewrite can quietly alter source details. | A local fact gate checks protected strings before the edit is returned. |
-| The model tends to overcorrect into fragments or forced casualness. | An overcorrection pass checks readability, rhythm, grammar, and voice. |
-| Each session starts from scratch. | Optional, reason-labelled preferences can be learned privately. |
+The installed skill ships no model. Your AI assistant, whether Claude, GPT, or another compatible model, reads and edits the draft. The skill supplies the workflow and local tools: a 0–100 writing score, source-detail checks, and a final comparison with the original. The eight stages divide the work.
 
-Zero Slop ships no model. Your AI assistant reads and edits the draft in context,
-using Claude, GPT, or another compatible model. The repository supplies the
-workflow and local tools for scoring and source checks.
+Use the score to locate passages worth reviewing. Optional private learning records reason-labelled corrections you provide; it does not learn a complete writing style.
 
 ## What it catches
 
-The scorer combines 294 weighted patterns with a 96-term lexicon. Examples include:
+The scorer uses 294 weighted patterns and a 96-term lexicon. It checks for:
 
 - binary contrast formulas: “It's not X. It's Y.”
 - canned openers: “We're thrilled to…” and “Here's the thing…”
 - vague attribution: “experts agree” and “studies show”
 - significance inflation: “marks a pivotal moment” and “a testament to”
-- promotional riders: “robust,” “seamless,” and “leverage” when used as hype
+- promotional wording: “robust,” “seamless,” and “leverage” when used as hype
 - repeated sentence shapes, crowded statistics, and overworked formatting
 
-Marketing terms are scored in context, so an ordinary technical use of a word need not trigger the same penalty. [`references/eval.md`](references/eval.md) documents all 80 checks.
+Context matters: a technical use of “robust” need not trigger the same penalty as sales hype. [`references/eval.md`](references/eval.md) describes all 80 checks.
 
-Unedited AI drafts averaged 77 in [`bench/examples.json`](bench/examples.json).
-Human writing scored 9 to 21 in
-[`data/corpus/must-not-flag/`](data/corpus/must-not-flag/). These are reference
-points for the scorer, not authorship boundaries.
+Unedited AI drafts averaged 77 in [`bench/examples.json`](bench/examples.json). Human writing scored 9 to 21 in [`data/corpus/must-not-flag/`](data/corpus/must-not-flag/). Use these to calibrate the scorer; they cannot establish authorship.
 
-## How it works
+## The editing workflow
 
 ![Zero Slop's eight editorial responsibilities, private learning loop, and separate release review](assets/engine.svg)
 
-Eight responsibilities form one workflow. They are jobs, not separate models.
-Research supports the checks, not the number eight, which is an engineering
-choice.
+Eight responsibilities form one workflow. Each stage is a job; several can share a model. Research informed the checks. We chose eight stages as an engineering convention.
 
 | Stage | Job |
 |---|---|
@@ -198,29 +173,21 @@ choice.
 | 7. Verifier | Compare the edit with the source for meaning, qualifiers, voice, and format. |
 | 8. Fresh-eyes finalizer | Apply only safe final polish, then run one last local check. |
 
-The free web editor combines the five AI responsibilities into one response and
-makes at most one live model call. A single response does not provide independent review.
-Any final change receives one final local recheck.
+The free web editor combines five AI jobs in at most one live model call. This is not independent model review. Any final change receives one final local recheck.
 
-If repair fails, return the safest edit with a warning. No open-ended rewrite loop.
+If repair fails, the editor returns the safest edit with a warning and stops there.
 
-### Review the reader's side
+### Optional reader review
 
-Ask: **“Review this for backend engineers. Where would they stop reading?
-Don't rewrite it.”** Optional skim, passage reactions, and notes-only recall
-produce comments and revision strips. Simulations cannot establish human behavior;
-sequential review requires isolated contexts. The [workflow](references/reader-review.md)
-explains privacy, limits, and reporting. Hosted calls are unchanged.
+Ask: **“Review this for backend engineers. Where would they stop reading? Don't rewrite it.”** An optional skim, passage reactions, and notes-only recall return comments. Simulated reactions cannot establish human behavior. Sequential review needs isolated contexts; see the [privacy and reporting limits](references/reader-review.md). Hosted calls are unchanged.
 
-Inspired by [First Reader](bench/first-reader/), a review-only skill. Zero Slop
-also rewrites and checks source details. Neither has established human-reader
-accuracy; First Reader gets no invented rewrite score.
+Inspired by [First Reader](bench/first-reader/), which only reviews. Zero Slop also rewrites and checks source details. Neither has established human-reader accuracy; First Reader has no invented rewrite score.
 
 ## Evidence and limits
 
-### Same model, same 18 drafts
+### A saved, same-model editing test
 
-A saved replay ran Zero Slop and three comparable open-source instruction sets over the same drafts with GPT-5.4, high reasoning, and pinned instructions. The outputs are frozen and reproducible.
+We ran Zero Slop and three open-source instruction sets on our AI Slop test corpus (18 samples), using GPT-5.4, high reasoning, and pinned instructions. Saved outputs are reproducible. The test partly uses Zero Slop's checks.
 
 | Method | Mean writing score ↓ | Passed local gates | Source check passed | Mean length change |
 |---|---:|---:|---:|---:|
@@ -230,16 +197,14 @@ A saved replay ran Zero Slop and three comparable open-source instruction sets o
 | no-ai-slop | 28.4 | 12/18 | 17/18 | -13.7% |
 | humanizer | 35.4 | 9/18 | 17/18 | -7.2% |
 
-![Fresh same-model editing replay on 18 drafts, with lower scores better](assets/bench-search-rewrites.png)
+![Writing scores and local checks for a saved, same-model replay of the AI Slop test corpus; lower scores are better](assets/bench-search-rewrites.png)
 
-This small LLM-reviewed regression study measures repeatable behavior; it does not establish universal writing quality. The drafts, hashes, method versions, prompts, and limitations are in [`bench/README.md`](bench/README.md).
+Zero Slop's saved rewrites cleared the listed checks. We have not shown that readers prefer them or that the result generalizes. Drafts, hashes, versions, prompts, and limitations are in [`bench/README.md`](bench/README.md).
 
-Zero Slop's frozen outputs came from v2.5.9; newer versions only rescore those
-saved outputs. The current scorer matched the prior 84.2% result on the fixed
-38-item editorial panel. These fixed-sample checks are not field accuracy.
+Zero Slop's outputs came from v2.5.9; newer versions only rescore them. The current scorer matched the prior 84.2% result on a fixed 38-item editorial panel. That is not field accuracy.
 
 <details>
-<summary>More validation</summary>
+<summary>Other tests and their limits</summary>
 
 - A method-hidden editorial preference replay: [`bench/incumbent-blind-replay/`](bench/incumbent-blind-replay/)
 - External-checker clean rates: [`assets/bench-external-checker.png`](assets/bench-external-checker.png)
@@ -247,23 +212,13 @@ saved outputs. The current scorer matched the prior 84.2% result on the fixed
 - Current-model corpus measurements: [`assets/bench-raid-plus.png`](assets/bench-raid-plus.png)
 - Antithesis regression set: [`assets/bench-antithesis.png`](assets/bench-antithesis.png)
 
-On the 75 labelled antithesis pairs, the current reading pass reached 91.2% recall across the full set, 100% recall on shapes in reach, and 100% precision. The labels are maintainer-authored and the pairs are constructed, so this is a regression floor rather than field accuracy.
+On 75 labelled antithesis pairs, the reading pass reached 91.2% recall across the full set, 100% recall on shapes in reach, and 100% precision. We constructed and labelled them; this is a regression test, not field accuracy.
 
-Local speed measurements cover the checks, with editing time excluded. On one
-Apple silicon Mac, the scorer processed 1,000 documents in a median of 1.9929
-seconds (501.8 per second); the five runs ranged from 1.9614 to 2.0945 seconds.
-It scored a 15,201-word document in a median of 0.3223 seconds. The slowest
-stress case took 2.2932 seconds, and learning from an 8,000-word edit took
-0.1592 seconds. The measurements and machine details are in
-[`bench/performance-results.json`](bench/performance-results.json).
+Local timings exclude AI editing. On one Apple silicon Mac, the scorer processed 1,000 documents in a median 1.9929 seconds (501.8 per second), with five runs ranging from 1.9614 to 2.0945 seconds. A 15,201-word document took a median 0.3223 seconds; the slowest stress case took 2.2932 seconds; learning from an 8,000-word edit took 0.1592 seconds. [Machine and results](bench/performance-results.json).
 
-Across 12 interleaved runs against 2.7.7, we measured 0.26% lower median throughput,
-within the 5% regression limit. Local timing, not an SLA. The two-way replay used
-Zero Slop v2.6.0.
+Across 12 interleaved runs against 2.7.7, median throughput was 0.26% lower, within the 5% regression limit. The two-way replay used Zero Slop v2.6.0. These local timings are not a service-level guarantee.
 
-The [RAID+ audit](bench/raid-plus-corpus/README.md) checks how the scorer responds
-to output from different models. Its pinned sample contains 7,627 usable
-generations:
+The [RAID+ audit](bench/raid-plus-corpus/README.md) asks a different question: how often does the scorer flag writing from different models? The pinned sample contains 7,627 usable generations:
 
 | Model | Texts scored | Mean writing score ↓ | At or above 25 |
 |---|---:|---:|---:|
@@ -272,31 +227,25 @@ generations:
 | Gemma 3 27B | 1,634 | 21.6 | 30.4% |
 | Llama 3.3 70B | 2,000 | 25.5 | 41.7% |
 
-RAID+ labels record which model produced each text; they do not grade writing
-quality. The [Beemo paired-edit audit](bench/beemo-corpus/README.md) checks how
-scores change after human editing: raw responses averaged 30.2, expert edits
-25.3, and human answers 20.0. Beemo also lacks writing-quality labels.
+RAID+ records which model wrote each passage, not whether it reads well. The [Beemo paired-edit audit](bench/beemo-corpus/README.md) asks how scores change after human editing: raw responses averaged 30.2, expert edits 25.3, and human answers 20.0. Beemo has no writing-quality labels either.
 
 </details>
 
-### Documented capability audit
+### Documented features
 
 ![Documented capabilities at pinned repository versions](assets/competitor-capabilities.png)
 
-This chart says nothing about writing quality or which tool writes better. It
-records documented features at pinned commits; the data and reproduction notes
-are in [`bench/README.md`](bench/README.md).
+The chart compares features documented at pinned commits. It does not measure how well any tool writes. See [`bench/README.md`](bench/README.md) for data and reproduction notes.
 
-The design follows research on [predictable wording in machine text](https://arxiv.org/abs/2301.11305) and [overused vocabulary](https://arxiv.org/abs/2406.07016). It deliberately avoids authorship claims because detectors can [misclassify non-native English](https://arxiv.org/abs/2304.02819).
+The checks draw on research into [predictable machine wording](https://arxiv.org/abs/2301.11305) and [overused vocabulary](https://arxiv.org/abs/2406.07016). Zero Slop cannot identify an author: detectors can [misclassify non-native English](https://arxiv.org/abs/2304.02819).
 
 ## Private learning
 
-Learning begins only when you provide an original output and your reason-labelled edit. Zero Slop does not monitor files, browsers, or publishing tools. Private data stays under `$ZERO_SLOP_HOME`; it is not committed to this repository and does not retrain the model.
+You decide whether to teach Zero Slop a preference. Give it an original output, your edited version, and the reason for the change. It does not watch your files, browser, or publishing tools. Private data stays under `$ZERO_SLOP_HOME`; it is not committed to this repository or used to retrain a model.
 
-A profile selected by name can exempt existing watchlist words. It does not
-learn cadence, tone, or a complete writing style.
+A profile selected by name can exempt existing watchlist words. It does not learn your cadence, tone, or entire writing style.
 
-## Repository map
+## Find the source
 
 | Path | Purpose |
 |---|---|
@@ -309,15 +258,15 @@ learn cadence, tone, or a complete writing style.
 | [`mcp/`](mcp/) | Optional hosted MCP server documentation |
 | [`DISTRIBUTION.md`](DISTRIBUTION.md) | Direct installs, marketplace submissions, and release synchronization |
 
-## Contributing and support
+## Contribute or get help
 
-Bug reports, false positives, examples, and carefully tested pattern improvements are welcome. Read [`CONTRIBUTING.md`](CONTRIBUTING.md) before opening a pull request, use the structured [issue forms](https://github.com/manavmishra/ZeroSlop/issues/new/choose), or start a [Discussion](https://github.com/manavmishra/ZeroSlop/discussions).
+Found a false positive, a broken check, or a better example? Use the [issue forms](https://github.com/manavmishra/ZeroSlop/issues/new/choose) or start a [Discussion](https://github.com/manavmishra/ZeroSlop/discussions). If you want to change a pattern, read [`CONTRIBUTING.md`](CONTRIBUTING.md) and include tests with your pull request.
 
-For setup help and responsible disclosure, see [`SUPPORT.md`](SUPPORT.md) and [`SECURITY.md`](SECURITY.md).
+For setup help, see [`SUPPORT.md`](SUPPORT.md). Report security issues through [`SECURITY.md`](SECURITY.md).
 
 ## Credits
 
-Ideas from [First Reader](https://github.com/Shubhamsaboo/awesome-llm-apps/tree/f56f4febaac4eb869c2e98859e78612889913d3e/agent_skills/first-reader), [no-ai-slop](https://github.com/petergyang/no-ai-slop), [humanizer](https://github.com/blader/humanizer), [de-slop](https://github.com/isatimur/de-slop), [stop-slop](https://github.com/hardikpandya/stop-slop), [unslop-text](https://github.com/JCarterJohnson/vibecoded-design-tells/tree/main/unslop-ai-text), and [avoid-ai-writing](https://github.com/conorbronsdon/avoid-ai-writing).
+Zero Slop builds on ideas from [First Reader](https://github.com/Shubhamsaboo/awesome-llm-apps/tree/f56f4febaac4eb869c2e98859e78612889913d3e/agent_skills/first-reader), [no-ai-slop](https://github.com/petergyang/no-ai-slop), [humanizer](https://github.com/blader/humanizer), [de-slop](https://github.com/isatimur/de-slop), [stop-slop](https://github.com/hardikpandya/stop-slop), [unslop-text](https://github.com/JCarterJohnson/vibecoded-design-tells/tree/main/unslop-ai-text), and [avoid-ai-writing](https://github.com/conorbronsdon/avoid-ai-writing).
 
 ## License
 

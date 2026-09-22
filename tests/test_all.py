@@ -2085,42 +2085,8 @@ class DocsMatchReality(unittest.TestCase):
         readme = self.docs["README.md"]
         words = len(readme.split())
         self.assertGreaterEqual(words, 1000, "README lost essential operating detail")
-        # 1250 -> 1350 on 2026-08-28. The README gained the three sections that make
-        # it followable for someone arriving cold: a Problem section with quoted
-        # examples, a How-to-use section with copy-paste commands, and a numbered
-        # list of what the score actually catches. That structure costs about 350
-        # words. The evidence prose tightened to pay some of it back, but every
-        # figure the suite pins individually has to stay, so the rest is real growth.
-        # Every figure, link and pinned honesty phrase survived: the suite asserts
-        # them individually.
-        # 1350 -> 1700 on 2026-08-30 for the worked example that now opens the
-        # page: the draft as a model wrote it, real slopscore.py --explain output
-        # over that exact paragraph (100.0, eleven flagged phrases across 83
-        # words), the source-bound rewrite, and its score. That is about 260
-        # words and it is the only part of the file that shows the meter working
-        # rather than describing it. Everything else in the project points here,
-        # and a reader arriving from a directory listing decides on the first
-        # screen, so the budget moved instead of the example being cut to fit.
-        # 1700 -> 1750 on 2026-09-01 for the "Show your score" section: the
-        # badge markdown, and the three band colours needed to change the
-        # number in it. That section is the distribution mechanism, not
-        # documentation of one. The badge is the only thing here that travels:
-        # it sits in someone else's README, states a number they produced, and
-        # links back to the scorer that produced it. Everything else in this
-        # file explains the tool to a reader who already arrived.
-        # I looked for the words elsewhere first and did not find them. The two
-        # longest paragraphs are the worked example the previous raise bought
-        # and the pattern list, which is the product's substance; the section
-        # itself was cut from about a hundred words to forty before this moved.
-        # 1750 -> 1875 on 2026-09-01 for "Reading-pass accuracy". The reading
-        # pass budgets antithesis pairs by frequency and had never had its count
-        # measured: recall was 40%, and nothing in the repository said so. A
-        # before/after table against a labelled corpus is the substance of that
-        # release, not documentation of it, and the same argument that bought
-        # the worked example its words buys these. I trimmed first and found 60
-        # words in the replay paragraph and the speed section; the rest is the
-        # table itself, which does not compress into prose without losing the
-        # four numbers a reader would check.
+        # Keep the quick start, worked example and measured caveats within the
+        # existing editorial budget. Deeper procedures belong in linked docs.
         self.assertLessEqual(words, 1875, "README exceeded the two-page editorial brief")
         self.assertIn("RAID+", readme)
         self.assertIn("7,627", readme)
@@ -2154,18 +2120,11 @@ class DocsMatchReality(unittest.TestCase):
         fresh measurements rather than plausible-sounding product detail.
         """
         readme = self.docs["README.md"]
-        source_match = re.search(
-            r"A launch post, as AI wrote it:\s*\n\s*(?P<quote>>[^\n]+)", readme
-        )
-        rewrite_match = re.search(
-            r"The rewrite, limited to the draft's stated claims:\s*\n\s*"
-            r"(?P<quote>>[^\n]+)", readme
-        )
-        self.assertIsNotNone(source_match, "README source example is missing")
-        self.assertIsNotNone(rewrite_match, "README source-bound rewrite is missing")
+        example = readme.split("## See an edit", 1)[1].split("## Quick start", 1)[0]
+        quotes = re.findall(r"^> (.+)$", example, flags=re.MULTILINE)
+        self.assertEqual(len(quotes), 2, "README needs a source and a rewrite")
 
-        source = source_match.group("quote").removeprefix(">").strip()
-        rewrite = rewrite_match.group("quote").removeprefix(">").strip()
+        source, rewrite = quotes
         self.assertEqual(
             rewrite,
             "We used machine learning to reduce onboarding setup time by 40%.",
@@ -2216,10 +2175,10 @@ class DocsMatchReality(unittest.TestCase):
         self.assertIn("eight responsibilities form one workflow", readme)
         assert_claim(self, readme, "the eight roles are jobs rather than separate models",
                      "jobs, not separate models", "they are jobs", "each is a job",
-                     "one model can handle several")
+                     "one model can handle several", "each stage is a job")
         assert_claim(self, readme, "research backs the checks but not the count of eight",
                      "not the number eight", "eight is an engineering choice",
-                     "research supports the checks")
+                     "research supports the checks", "eight stages as an engineering convention")
         positions = [readme.index(role) for role in roles]
         self.assertEqual(positions, sorted(positions), "README role order drifted")
         self.assertIn("at most one live model call", readme)
@@ -4266,7 +4225,8 @@ class Diagram(unittest.TestCase):
         assert_claim(self, normalized_readme,
                      "the capability chart records features, not writing quality",
                      "not which tool writes better", "says nothing about writing quality",
-                     "nothing about which tool writes better")
+                     "nothing about which tool writes better",
+                     "does not measure how well any tool writes")
         self.assertIn("[`bench/README.md`](bench/README.md)", readme)
         self.assertTrue((ROOT / "assets" / "competitor-capabilities.png").exists())
 
