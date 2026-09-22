@@ -1,5 +1,6 @@
-"""Fail-closed regression tests for the narrowly pinned measurement exception."""
+"""Fail-closed tests for the narrowly pinned measurement exception."""
 import copy
+import hashlib
 import json
 from pathlib import Path
 import shutil
@@ -7,156 +8,116 @@ import tempfile
 import unittest
 
 from runtime_compatibility import (
-    EVIDENCE, PINNED_FILES, ROOT, exact_code_compatible, reports_match,
+    EVIDENCE, PAIR_EVIDENCE, PINNED_FILES, ROOT,
+    exact_code_compatible, reports_match,
 )
 
 
 class RuntimeCompatibilityTests(unittest.TestCase):
-    def test_exact_reviewed_pair_matches(self):
-        self.assertTrue(exact_code_compatible("2.11.6", "2.12.0"))
+    def make_evidence(self, path, *, compatible="2.12.0", root=ROOT):
+        record = {
+            "schema": 1,
+            "result_kind": "exact_code_equivalence_not_new_measurement",
+            "measured_version": "2.11.6",
+            "compatible_version": compatible,
+            "measured_commit": "0d866036b210b90e23fa9f7b4146316cf40c255e",
+            "files": {
+                name: hashlib.sha256((Path(root) / name).read_bytes()).hexdigest()
+                for name in PINNED_FILES
+            },
+        }
+        path.write_text(json.dumps(record))
+        return path
 
-    def test_new_exact_pair_matches_without_relabelling_history(self):
-        self.assertTrue(exact_code_compatible("2.11.6", "2.12.1"))
-        old = {"scorer": {"version": "2.11.6"}, "score": 12}
-        new = {"scorer": {"version": "2.12.1"}, "score": 12}
-        before = copy.deepcopy((old, new))
-        self.assertTrue(reports_match(old, new))
-        self.assertEqual((old, new), before)
-        new["score"] = 13
-        self.assertFalse(reports_match(old, new))
+    def copy_runtime(self, destination):
+        for name in PINNED_FILES:
+            target = destination / name
+            target.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copyfile(ROOT / name, target)
 
-    def test_docs_release_pair_preserves_historical_measurements(self):
-        self.assertTrue(exact_code_compatible("2.11.6", "2.12.2"))
-        old = {"scorer": {"version": "2.11.6"}, "score": 12}
-        new = {"scorer": {"version": "2.12.2"}, "score": 12}
-        self.assertTrue(reports_match(old, new))
-        new["score"] = 13
-        self.assertFalse(reports_match(old, new))
+    def test_historical_evidence_fails_after_runtime_bytes_change(self):
+        # These releases matched 2.11.6 when reviewed. The current scorer has
+        # since changed, so none may authorize relabelling today.
+        for measured, compatible in PAIR_EVIDENCE:
+            with self.subTest(pair=(measured, compatible)):
+                self.assertFalse(exact_code_compatible(measured, compatible))
 
-    def test_readme_style_release_pair_preserves_historical_measurements(self):
-        self.assertTrue(exact_code_compatible("2.11.6", "2.12.3"))
-        old = {"scorer": {"version": "2.11.6"}, "score": 12}
-        new = {"scorer": {"version": "2.12.3"}, "score": 12}
-        self.assertTrue(reports_match(old, new))
-        new["score"] = 13
-        self.assertFalse(reports_match(old, new))
-
-    def test_readme_logo_release_pair_preserves_historical_measurements(self):
-        self.assertTrue(exact_code_compatible("2.11.6", "2.12.4"))
-        old = {"scorer": {"version": "2.11.6"}, "score": 12}
-        new = {"scorer": {"version": "2.12.4"}, "score": 12}
-        self.assertTrue(reports_match(old, new))
-        new["score"] = 13
-        self.assertFalse(reports_match(old, new))
-
-    def test_readme_tagline_release_pair_preserves_historical_measurements(self):
-        self.assertTrue(exact_code_compatible("2.11.6", "2.12.5"))
-        old = {"scorer": {"version": "2.11.6"}, "score": 12}
-        new = {"scorer": {"version": "2.12.5"}, "score": 12}
-        self.assertTrue(reports_match(old, new))
-        new["score"] = 13
-        self.assertFalse(reports_match(old, new))
-
-    def test_readme_lead_release_pair_preserves_historical_measurements(self):
-        self.assertTrue(exact_code_compatible("2.11.6", "2.12.6"))
-        old = {"scorer": {"version": "2.11.6"}, "score": 12}
-        new = {"scorer": {"version": "2.12.6"}, "score": 12}
-        self.assertTrue(reports_match(old, new))
-        new["score"] = 13
-        self.assertFalse(reports_match(old, new))
-
-    def test_release_hardening_pair_preserves_historical_scorer_measurements(self):
-        self.assertTrue(exact_code_compatible("2.11.6", "2.12.7"))
-        old = {"scorer": {"version": "2.11.6"}, "score": 12}
-        new = {"scorer": {"version": "2.12.7"}, "score": 12}
-        self.assertTrue(reports_match(old, new))
-        new["score"] = 13
-        self.assertFalse(reports_match(old, new))
-
-    def test_editor_capacity_release_does_not_relabel_historical_scorer_results(self):
-        self.assertTrue(exact_code_compatible("2.11.6", "2.12.8"))
-        old = {"scorer": {"version": "2.11.6"}, "score": 12}
-        new = {"scorer": {"version": "2.12.8"}, "score": 12}
-        self.assertTrue(reports_match(old, new))
-        new["score"] = 13
-        self.assertFalse(reports_match(old, new))
-
-    def test_free_provider_release_preserves_only_exact_scorer_measurements(self):
-        self.assertTrue(exact_code_compatible("2.11.6", "2.12.9"))
-        old = {"scorer": {"version": "2.11.6"}, "score": 12}
-        new = {"scorer": {"version": "2.12.9"}, "score": 12}
-        self.assertTrue(reports_match(old, new))
-        new["score"] = 13
-        self.assertFalse(reports_match(old, new))
-
-    def test_manifests_cannot_be_used_for_another_pair(self):
-        new_evidence = EVIDENCE.with_name("runtime-compatibility-2.12.1.json")
-        self.assertFalse(exact_code_compatible("2.11.6", "2.12.1", evidence_path=EVIDENCE))
-        self.assertFalse(exact_code_compatible("2.11.6", "2.12.0", evidence_path=new_evidence))
-        docs_evidence = EVIDENCE.with_name("runtime-compatibility-2.12.2.json")
-        self.assertFalse(exact_code_compatible("2.11.6", "2.12.1", evidence_path=docs_evidence))
-
-    def test_unknown_or_reversed_versions_rejected(self):
-        for pair in [("2.11.5", "2.12.0"), ("2.11.6", "2.12.10"),
-                     ("2.12.0", "2.12.1"), ("2.12.1", "2.11.6"),
-                     ("2.12.0", "2.11.6"), ("2.11.6", "2.11.6"),
-                     (None, "2.12.0")]:
-            with self.subTest(pair=pair):
-                self.assertFalse(exact_code_compatible(*pair))
-
-    def test_every_source_and_data_change_rejected(self):
+    def test_complete_exact_hash_evidence_accepts_only_its_reviewed_pair(self):
         with tempfile.TemporaryDirectory() as temp:
-            root = Path(temp)
-            for name in PINNED_FILES:
-                target = root / name
-                target.parent.mkdir(parents=True, exist_ok=True)
-                shutil.copyfile(ROOT / name, target)
-            for version in ("2.12.0", "2.12.1", "2.12.2", "2.12.3", "2.12.4", "2.12.5", "2.12.6", "2.12.7", "2.12.8", "2.12.9"):
-                self.assertTrue(exact_code_compatible("2.11.6", version, root=root))
+            evidence = self.make_evidence(Path(temp) / "evidence.json")
+            self.assertTrue(exact_code_compatible(
+                "2.11.6", "2.12.0", evidence_path=evidence,
+            ))
+            self.assertFalse(exact_code_compatible(
+                "2.11.6", "2.12.1", evidence_path=evidence,
+            ))
+            self.assertFalse(exact_code_compatible(
+                "2.12.0", "2.11.6", evidence_path=evidence,
+            ))
+
+    def test_reports_match_normalizes_only_the_verified_version(self):
+        with tempfile.TemporaryDirectory() as temp:
+            evidence = self.make_evidence(Path(temp) / "evidence.json")
+            old = {"scorer": {"version": "2.11.6"}, "score": 12,
+                   "date": "historical"}
+            new = {"scorer": {"version": "2.12.0"}, "score": 12,
+                   "date": "historical"}
+            before = copy.deepcopy((old, new))
+            self.assertTrue(reports_match(old, new, evidence_path=evidence))
+            self.assertEqual((old, new), before)
+            new["score"] = 13
+            self.assertFalse(reports_match(old, new, evidence_path=evidence))
+            new["score"] = 12
+            new["date"] = "relabelled"
+            self.assertFalse(reports_match(old, new, evidence_path=evidence))
+
+    def test_identical_reports_need_no_compatibility_exception(self):
+        report = {"scorer": {"version": "2.12.10"}, "score": 12}
+        self.assertTrue(reports_match(report, copy.deepcopy(report)))
+
+    def test_unknown_current_version_has_no_historical_bypass(self):
+        self.assertFalse(exact_code_compatible("2.11.6", "2.12.10"))
+        self.assertFalse(exact_code_compatible(None, "2.12.10"))
+
+    def test_every_runtime_source_or_data_change_fails_closed(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp) / "runtime"
+            self.copy_runtime(root)
+            evidence = self.make_evidence(Path(temp) / "evidence.json", root=root)
+            self.assertTrue(exact_code_compatible(
+                "2.11.6", "2.12.0", root=root, evidence_path=evidence,
+            ))
             for name in PINNED_FILES:
                 with self.subTest(file=name):
                     target = root / name
                     original = target.read_bytes()
                     target.write_bytes(original + b"\n")
-                    for version in ("2.12.0", "2.12.1", "2.12.2", "2.12.3", "2.12.4", "2.12.5", "2.12.6", "2.12.7", "2.12.8", "2.12.9"):
-                        self.assertFalse(exact_code_compatible("2.11.6", version, root=root))
+                    self.assertFalse(exact_code_compatible(
+                        "2.11.6", "2.12.0", root=root, evidence_path=evidence,
+                    ))
                     target.write_bytes(original)
 
-    def test_missing_files_rejected(self):
+    def test_missing_runtime_files_are_rejected(self):
         with tempfile.TemporaryDirectory() as temp:
-            self.assertFalse(exact_code_compatible("2.11.6", "2.12.0", root=Path(temp)))
+            evidence = self.make_evidence(Path(temp) / "evidence.json")
+            self.assertFalse(exact_code_compatible(
+                "2.11.6", "2.12.0", root=Path(temp) / "missing",
+                evidence_path=evidence,
+            ))
 
-    def test_incomplete_manifest_rejected(self):
+    def test_incomplete_or_invalid_evidence_is_rejected(self):
         with tempfile.TemporaryDirectory() as temp:
             path = Path(temp) / "evidence.json"
             record = json.loads(EVIDENCE.read_text())
             del record["files"]["data/learned.json"]
             path.write_text(json.dumps(record))
-            self.assertFalse(exact_code_compatible("2.11.6", "2.12.0", evidence_path=path))
-
-    def test_invalid_evidence_rejected(self):
-        with tempfile.TemporaryDirectory() as temp:
-            path = Path(temp) / "evidence.json"
+            self.assertFalse(exact_code_compatible(
+                "2.11.6", "2.12.0", evidence_path=path,
+            ))
             path.write_text("invalid json")
-            self.assertFalse(exact_code_compatible("2.11.6", "2.12.0", evidence_path=path))
-
-    def test_only_verified_version_difference_accepted_without_mutation(self):
-        old = {"scorer": {"version": "2.11.6"}, "score": 12, "date": "historical"}
-        new = {"scorer": {"version": "2.12.0"}, "score": 12, "date": "historical"}
-        before = copy.deepcopy((old, new))
-        self.assertTrue(reports_match(old, new))
-        self.assertEqual((old, new), before)
-        new["score"] = 13
-        self.assertFalse(reports_match(old, new))
-        new["score"] = 12
-        new["date"] = "relabelled"
-        self.assertFalse(reports_match(old, new))
-
-    def test_version_only_difference_cannot_bypass_modified_runtime(self):
-        old = {"scorer": {"version": "2.11.6"}, "score": 12}
-        new = {"scorer": {"version": "2.12.0"}, "score": 12}
-        with tempfile.TemporaryDirectory() as temp:
-            self.assertFalse(reports_match(old, new, root=Path(temp)))
+            self.assertFalse(exact_code_compatible(
+                "2.11.6", "2.12.0", evidence_path=path,
+            ))
 
 
 if __name__ == "__main__":

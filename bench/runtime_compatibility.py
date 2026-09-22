@@ -50,7 +50,7 @@ def exact_code_compatible(measured_version, current_version, *, root=ROOT, evide
         return False
 
 
-def reports_match(measured, recomputed, *, root=ROOT):
+def reports_match(measured, recomputed, *, root=ROOT, evidence_path=None):
     """Compare all report data; normalize only an independently verified version.
 
     Deep copies avoid relabeling either historical artifacts or fresh output.
@@ -59,7 +59,7 @@ def reports_match(measured, recomputed, *, root=ROOT):
         return True
     old = measured.get("scorer", {}).get("version")
     new = recomputed.get("scorer", {}).get("version")
-    if not exact_code_compatible(old, new, root=root):
+    if not exact_code_compatible(old, new, root=root, evidence_path=evidence_path):
         return False
     normalized = copy.deepcopy(recomputed)
     normalized["scorer"]["version"] = old
