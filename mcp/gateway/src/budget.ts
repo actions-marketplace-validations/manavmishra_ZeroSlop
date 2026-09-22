@@ -12,10 +12,22 @@ export class HostedBudgetError extends Error {
     super(code === "usage_limit"
       ? "Hosted editing is temporarily busy or at its free usage limit. " + (retryAfterSeconds === null
         ? "Please try again later."
-        : `Please wait at least ${retryAfterSeconds} ${retryAfterSeconds === 1 ? "second" : "seconds"} before trying again.`)
+        : `Please wait ${humanRetryDelay(retryAfterSeconds)} before trying again.`)
       : "Hosted capacity could not be checked. No model request was started. Please try again later.");
   }
   get status(): 429 | 503 { return this.code === "usage_limit" ? 429 : 503; }
+}
+
+function humanRetryDelay(seconds: number): string {
+  if (seconds >= 3600) {
+    const hours = Math.ceil(seconds / 3600);
+    return `about ${hours} ${hours === 1 ? "hour" : "hours"}`;
+  }
+  if (seconds > 90) {
+    const minutes = Math.ceil(seconds / 60);
+    return `about ${minutes} ${minutes === 1 ? "minute" : "minutes"}`;
+  }
+  return `at least ${seconds} ${seconds === 1 ? "second" : "seconds"}`;
 }
 
 export async function dailyBudgetClient(secret: string, address = "", now = Date.now()) {

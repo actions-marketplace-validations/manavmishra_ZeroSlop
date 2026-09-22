@@ -101,6 +101,17 @@ test("changed polarity claims require review while untouched claims allow other 
   assert.equal(sourceClaimRisk("The pilot works.", "The pilot worked."), true);
 });
 
+test("a vetted local deletion of empty framing does not make a preserved future claim uncertain", () => {
+  const original = "As we move forward, the team will leverage the proposal to make a decision on Friday. This represents a significant milestone in our journey.";
+  const edited = "The team will use the proposal to decide on Friday.";
+  assert.equal(localRescue(original), edited);
+  assert.equal(sourceClaimRisk(original, edited), false);
+  assert.equal(sourceClaimRisk(original, "The team may use the proposal to decide on Friday."), true);
+  assert.equal(sourceClaimRisk(original, "The team will use the proposal to decide on Monday."), true);
+  assert.equal(localRescue("Maya wrote that as we move forward, the team will review the proposal."),
+    "Maya wrote that as we move forward, the team will review the proposal.");
+});
+
 test("scorer guidance is bounded and gives the editor exact targets", () => {
   const report = writingReport(88);
   report.flags = Array.from({ length: 20 }, (_, index) => ({

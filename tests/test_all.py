@@ -3767,6 +3767,35 @@ class Fidelity(unittest.TestCase):
         self.assertEqual(rescue.rescue_text("The insights were game-changing."),
                          "Those conversations changed our approach.")
 
+    def test_local_fallback_cleans_short_hosted_fixtures_without_losing_claims(self):
+        import rescue
+        cases = (
+            (
+                "Hi Priya,\n\nIt is important to note that we are incredibly excited to share a "
+                "groundbreaking update. Maya will send the pricing proposal by Friday.\n\nThanks,\nJonah",
+                "Hi Priya,\n\nWe're sharing an update. Maya will send the pricing proposal by Friday."
+                "\n\nThanks,\nJonah",
+            ),
+            (
+                "It is important to note that Maya owns the pricing review. As we move forward, "
+                "the team will leverage the proposal to make a decision on Friday. "
+                "This represents a significant milestone in our journey.",
+                "Maya owns the pricing review. The team will use the proposal to decide on Friday.",
+            ),
+        )
+        for source, expected in cases:
+            with self.subTest(source=source[:40]):
+                self.assertEqual(rescue.rescue_text(source), expected)
+                self.assertEqual(rescue.rescue_text(expected), expected)
+                self.assertLess(slopscore.score_text(expected, slopscore.load_patterns())["ai_likelihood"], 25)
+                checked = slopscore.fidelity(source, expected)
+                self.assertTrue(checked["preserved"])
+                self.assertFalse(checked["invented"])
+        self.assertEqual(
+            rescue.rescue_text("Maya wrote that as we move forward, the team will review it."),
+            "Maya wrote that as we move forward, the team will review it.",
+        )
+
     def test_local_fallback_removes_complete_intro_without_adding_event_timing(self):
         import rescue
         for apostrophe in ("'", "’"):
