@@ -2,7 +2,7 @@
 name: zero-slop
 license: MIT
 metadata:
-  version: "2.12.10"
+  version: "2.12.11"
   author: manavmishra
 description: Edit drafts into natural prose, inspect AI-sounding patterns, or review how a specified audience might respond passage by passage. Zero Slop runs inside the user's existing AI assistant with local tools that protect source details. Use for humanizing or de-slopping writing, polishing outward-facing prose, social drafts, final editorial checks, or an explicit simulated reader review. Preserve facts, voice and format; reader simulations are hypotheses, not human feedback.
 ---
@@ -103,6 +103,12 @@ factual statements and qualifications unchanged where possible. Missing knowledg
 stays missing: “not measured beyond the first month” does not establish that the
 first month was measured, and a missing feature in a new product does not establish
 that the old product had it.
+
+Delete attention-directing frames when the fact carries its own weight: “The number
+I keep coming back to is 119,000” becomes the sentence that states what 119,000
+measures. Then apply the removal test to the next sentence too. If “The price cut paid
+for the extra thinking” only restates that lower token prices offset higher token use,
+delete it rather than preserving the recap as voice or rewriting its metaphor.
 
 Keep local and AI responsibilities distinct:
 
@@ -1022,7 +1028,7 @@ the draft or future edits in a private overlay.
   context boundaries, skim preview, notes-only follow-ups and revision comparison.
   `scripts/reader_review.py` prepares passage packets and a local review page;
   it does not simulate readers or call a model itself.
-- `references/tells.md` — the master taxonomy (113 tells, 6 families) with fixes.
+- `references/tells.md` — the master taxonomy (115 tells, 6 families) with fixes.
   It is the human-readable catalogue; `data/patterns.json` is its machine
   implementation. Together with the reviewed shared overlay, the current
   release carries 294 weighted regexes because some tells need more than one.

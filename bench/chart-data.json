@@ -28,11 +28,11 @@
   ],
   [
    "stacked pipeline",
-   23.6
+   24.0
   ],
   [
    "blader/humanizer",
-   20.7
+   21.1
   ],
   [
    "petergyang/no-ai-slop",
@@ -259,7 +259,7 @@
  ],
  "contextual_ablation": [
   [
-   "v2.12.10 local score",
+   "v2.12.11 local score",
    93.18
   ],
   [

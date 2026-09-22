@@ -150,6 +150,19 @@
           "span": "Same assay, two units."
         }
       ]
+    },
+    {
+      "file": "opus-effort-recap.md",
+      "expect": [
+        {
+          "check": "Interpretive metadiscourse",
+          "span": "The number I keep coming back to is 119,000"
+        },
+        {
+          "check": "Removal test",
+          "span": "The price cut paid for the extra thinking."
+        }
+      ]
     }
   ]
 }

@@ -27,6 +27,8 @@ rewriter to approve its own work.
   all legitimate lists, tables, code, headings, citations, links, and layout.
 - **Last-mile polish.** Correct a safe leftover repetition, vague handoff, awkward
   phrase, or mechanical inconsistency that survived the earlier passes.
+- **Adjacent meaning.** Delete a follow-up sentence that merely recasts the result or
+  cause just stated, even when the recap sounds polished or metaphorical.
 
 ## Boundaries
 

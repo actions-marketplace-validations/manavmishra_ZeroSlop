@@ -101,6 +101,9 @@ the report even when they are zero.
     claim is a judgment and not a match. A zero on the anchored count is not an
     answer to this check and never closes it: the stems match the shapes they were
     built from, and this family's whole character is that it arrives in new ones.
+    Personal attention frames belong here too: “The number I keep coming back to is
+    119,000” becomes the sentence that explains what 119,000 measures. Keep “I keep
+    coming back to X because Y” when Y adds a real reason rather than staging emphasis.
 17. **Weasel attribution.** "Studies show." "Experts agree." Name the source, or flag
     it for the writer. Never invent one. An unnamed validator is the same defect —
     "an external checker", "a third-party audit", "an independent review" — name the
@@ -161,7 +164,9 @@ the report even when they are zero.
 31. **Removal test.** Does every paragraph lose something real when deleted? Check
     individual sentences too. Replacing “Efficiency is paramount” with “Efficiency
     is crucial” fails when the whole sentence is empty. Cut sentences that merely
-    restate a nearby benefit; preserve substantive opinions and useful transitions.
+    restate a nearby benefit or cause: after a sentence says lower token prices offset
+    higher token use, “The price cut paid for the extra thinking” adds only metaphor.
+    Preserve substantive opinions and useful transitions.
 32. **Relevance test.** Does every paragraph serve the brief, audience, and argument?
 33. **Front-loading, applied selectively.** Conclusions arrive early where that helps
     the reader, without forcing every section into the same point-then-detail shape.

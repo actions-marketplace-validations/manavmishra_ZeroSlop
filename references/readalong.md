@@ -57,7 +57,9 @@ safe correction for:
   Each test gets its own paragraph that opens with what it checks in plain words,
   numbers after the setup.
 - **Repetition.** Fix a word, phrase, sentence shape, or idea repeated close enough
-  to sound accidental.
+  to sound accidental. Run the removal test across adjacent sentences: after “lower
+  token prices offset higher token use,” delete “the price cut paid for the extra
+  thinking.” The metaphor repeats the result rather than adding one.
 - **Register slips.** Rewrite sudden marketing gloss, generic formality, or folksy
   filler to match the document's established voice.
 - **Process-language leaks.** In outward-facing prose, replace internal labels such

@@ -777,6 +777,7 @@ class CommunityReportedSignals(unittest.TestCase):
         data = slopscore.load_patterns()
         flagged = [
             "The line I keep coming back to is that agents need limits.",
+            "The number I keep coming back to is 119,000 output tokens per task.",
             "I can't stop thinking about this launch note.",
             "That phrase has been rattling around in my head all week.",
             "I've been chewing on this since the meeting.",
@@ -790,6 +791,20 @@ class CommunityReportedSignals(unittest.TestCase):
                     "it predicts which engineers quit and which ones file an RFC.")
         hits = slopscore.score_text(reasoned, data)["hits"]
         self.assertFalse(any(hit["name"] == "lingering-attention" for hit in hits))
+
+    def test_opus_effort_regression_is_recorded_for_contextual_review(self):
+        fixture = DATA / "corpus" / "must-flag" / "opus-effort-recap.md"
+        manifest = json.loads((fixture.parent / "manifest.json").read_text())
+        row = next((item for item in manifest["fixtures"]
+                    if item["file"] == fixture.name), None)
+        self.assertIsNotNone(row, "the production miss needs a permanent regression fixture")
+        text = fixture.read_text()
+        self.assertIn("The number I keep coming back to is 119,000", text)
+        self.assertIn("The price cut paid for the extra thinking.", text)
+        expected = {(item.get("check"), item["span"]) for item in row["expect"]}
+        self.assertIn(("Interpretive metadiscourse",
+                       "The number I keep coming back to is 119,000"), expected)
+        self.assertIn(("Removal test", "The price cut paid for the extra thinking."), expected)
 
     def test_social_endorsement_closers_need_a_curatorial_anchor(self):
         data = slopscore.load_patterns()

@@ -6,7 +6,13 @@
   SKILL.md now names experiential/interior claims as fabrication explicitly.
 
 One line per change to `learned.json` or `patterns.json`: date, what, why,
-example that motivated it.
+and the example that motivated it.
+
+- 2026-09-22 — v2.12.11 production-edit regression. Expanded the existing
+  lingering-attention rule from lines and ideas to numeric emphasis frames such
+  as “The number I keep coming back to…”. Added a contextual fixture for deleting
+  a metaphorical recap when the preceding sentence already states the same causal
+  result. Reasoned return-to-an-idea clauses remain exempt.
 
 - 2026-08-25 — v2.5.8. Added `generic-benefit-stack` (weight 1) after the
   frozen quality panel exposed five passages whose product noun and multiple

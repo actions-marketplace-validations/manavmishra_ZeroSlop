@@ -30,7 +30,7 @@ Source: https://github.com/manavmishra/ZeroSlop   MIT
 name: zero-slop
 license: MIT
 metadata:
-  version: "2.12.10"
+  version: "2.12.11"
   author: manavmishra
 description: Edit drafts into natural prose, inspect AI-sounding patterns, or review how a specified audience might respond passage by passage. Zero Slop runs inside the user's existing AI assistant with local tools that protect source details. Use for humanizing or de-slopping writing, polishing outward-facing prose, social drafts, final editorial checks, or an explicit simulated reader review. Preserve facts, voice and format; reader simulations are hypotheses, not human feedback.
 ---
@@ -131,6 +131,12 @@ factual statements and qualifications unchanged where possible. Missing knowledg
 stays missing: “not measured beyond the first month” does not establish that the
 first month was measured, and a missing feature in a new product does not establish
 that the old product had it.
+
+Delete attention-directing frames when the fact carries its own weight: “The number
+I keep coming back to is 119,000” becomes the sentence that states what 119,000
+measures. Then apply the removal test to the next sentence too. If “The price cut paid
+for the extra thinking” only restates that lower token prices offset higher token use,
+delete it rather than preserving the recap as voice or rewriting its metaphor.
 
 Keep local and AI responsibilities distinct:
 
@@ -1050,7 +1056,7 @@ the draft or future edits in a private overlay.
   context boundaries, skim preview, notes-only follow-ups and revision comparison.
   `scripts/reader_review.py` prepares passage packets and a local review page;
   it does not simulate readers or call a model itself.
-- `references/tells.md` — the master taxonomy (113 tells, 6 families) with fixes.
+- `references/tells.md` — the master taxonomy (115 tells, 6 families) with fixes.
   It is the human-readable catalogue; `data/patterns.json` is its machine
   implementation. Together with the reviewed shared overlay, the current
   release carries 294 weighted regexes because some tells need more than one.
@@ -1227,6 +1233,8 @@ Contextual review names six checks explicitly: paragraph-order dependence, unsup
 | Staccato antithesis: two short balanced sentences, the second landing the twist — "Not perfect. Honest.", "Slop isn't a vibe. It's measurable.", "The draft was cheap. The signal it sent was not." | One plain sentence with the claim; at most one antithesis per piece |
 | Unmarked antithesis: the same figure with no negation marker at all, so the whole "not X, it's Y" family walks past it. Four shapes — bare subject swap ("Llama is open-weights. Dolma releases the data."); isocolon, one verb frame with both arguments swapped ("Open weights let you adapt a model. An open stack lets you adapt the machinery that created it."); the stock closer ("Ai2 argues for a principle. This is what that principle looks like."); unmarked reversal ("No frontier lab had to decide. Thai researchers made that call themselves.") | State the claim once, plainly. The meter now catches the last three (`isocolon-ditransitive`, `this-is-what-looks-like`, `no-x-had-to`); bare subject swap stays a judgment call. **Count them** — one is a device, three in a short piece is the register |
 | Significance scaffolding: a sentence announcing that a point matters instead of delivering it — "Here's the detail that matters:", "This is what that principle looks like when it works." | Delete the announcement and keep the point. Budget: zero |
+| Personal emphasis scaffolding: “The number I keep coming back to is 119,000” tells the reader where to look instead of stating what 119,000 measures | Start with the measured fact. Keep a reasoned return to an idea only when the reason adds a claim. |
+| Metaphorical recap: “The price cut paid for the extra thinking” follows a sentence that already says lower token prices offset higher token use | Delete the recap. Do not rewrite repeated meaning into a fresher metaphor. |
 | Extended conceit: a process or abstraction dressed as physical drama — billing ("the bill lands on reputation", "gets billed to a reader"), courtroom ("never allowed to convict"), forensics ("rhythm leaves prints"), machinery ("opens the hood"), recipe ("has four ingredients") | At most one metaphor per piece, then plain language; name the actual mechanism |
 | Vibe-slang: "just a vibe", "vibe check", "argue with vibes", "has receipts" | The plain word: impression, judgment, evidence |
 | One-word drama beat: "Fine." dropped between claims as a rhythm device | Cut it or fold it into the sentence it interrupts |
@@ -1762,7 +1770,9 @@ safe correction for:
   Each test gets its own paragraph that opens with what it checks in plain words,
   numbers after the setup.
 - **Repetition.** Fix a word, phrase, sentence shape, or idea repeated close enough
-  to sound accidental.
+  to sound accidental. Run the removal test across adjacent sentences: after “lower
+  token prices offset higher token use,” delete “the price cut paid for the extra
+  thinking.” The metaphor repeats the result rather than adding one.
 - **Register slips.** Rewrite sudden marketing gloss, generic formality, or folksy
   filler to match the document's established voice.
 - **Process-language leaks.** In outward-facing prose, replace internal labels such
@@ -2041,6 +2051,9 @@ the report even when they are zero.
     claim is a judgment and not a match. A zero on the anchored count is not an
     answer to this check and never closes it: the stems match the shapes they were
     built from, and this family's whole character is that it arrives in new ones.
+    Personal attention frames belong here too: “The number I keep coming back to is
+    119,000” becomes the sentence that explains what 119,000 measures. Keep “I keep
+    coming back to X because Y” when Y adds a real reason rather than staging emphasis.
 17. **Weasel attribution.** "Studies show." "Experts agree." Name the source, or flag
     it for the writer. Never invent one. An unnamed validator is the same defect —
     "an external checker", "a third-party audit", "an independent review" — name the
@@ -2101,7 +2114,9 @@ the report even when they are zero.
 31. **Removal test.** Does every paragraph lose something real when deleted? Check
     individual sentences too. Replacing “Efficiency is paramount” with “Efficiency
     is crucial” fails when the whole sentence is empty. Cut sentences that merely
-    restate a nearby benefit; preserve substantive opinions and useful transitions.
+    restate a nearby benefit or cause: after a sentence says lower token prices offset
+    higher token use, “The price cut paid for the extra thinking” adds only metaphor.
+    Preserve substantive opinions and useful transitions.
 32. **Relevance test.** Does every paragraph serve the brief, audience, and argument?
 33. **Front-loading, applied selectively.** Conclusions arrive early where that helps
     the reader, without forcing every section into the same point-then-detail shape.
@@ -2305,6 +2320,8 @@ rewriter to approve its own work.
   all legitimate lists, tables, code, headings, citations, links, and layout.
 - **Last-mile polish.** Correct a safe leftover repetition, vague handoff, awkward
   phrase, or mechanical inconsistency that survived the earlier passes.
+- **Adjacent meaning.** Delete a follow-up sentence that merely recasts the result or
+  cause just stated, even when the recap sounds polished or metaphorical.
 
 ## Boundaries
 
