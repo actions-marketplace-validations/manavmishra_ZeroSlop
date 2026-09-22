@@ -13,7 +13,7 @@ ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / ".github" / "scripts"))
 from publication_guard import API, RAW, publication_guard  # noqa: E402
 from registry_record import published_record  # noqa: E402
-from reconcile_release import MCP, repair_plan  # noqa: E402
+from reconcile_release import MCP, repair_plan, retry_transient_read  # noqa: E402
 import npm_record  # noqa: E402
 
 
@@ -211,6 +211,36 @@ class ReconcilePlan(unittest.TestCase):
     def test_current_release_does_not_republish(self):
         self.assertEqual(repair_plan(self.version, self.sha, read=self.data.__getitem__), [])
 
+    def test_registry_timeout_retries_without_a_blind_publish(self):
+        registry_url = ("https://registry.modelcontextprotocol.io/v0.1/servers/"
+                        "io.github.manavmishra%2Fzero-slop/versions/latest")
+        calls, pauses = [], []
+
+        def read(url):
+            calls.append(url)
+            if url == registry_url and calls.count(url) == 1:
+                raise TimeoutError("registry temporarily unavailable")
+            return self.data[url]
+
+        self.assertEqual(
+            repair_plan(self.version, self.sha, read=read, retry_sleep=pauses.append),
+            [],
+        )
+        self.assertEqual(calls.count(registry_url), 2)
+        self.assertEqual(pauses, [1])
+
+    def test_registry_timeout_exhaustion_blocks_recovery(self):
+        registry_url = ("https://registry.modelcontextprotocol.io/v0.1/servers/"
+                        "io.github.manavmishra%2Fzero-slop/versions/latest")
+
+        def read(url):
+            if url == registry_url:
+                raise TimeoutError("registry unavailable")
+            return self.data[url]
+
+        with self.assertRaisesRegex(TimeoutError, "registry unavailable"):
+            repair_plan(self.version, self.sha, read=read, retry_sleep=lambda _: None)
+
     def test_api_drift_repairs_gateway_not_npm(self):
         self.data[f"{MCP}/openapi.json"]["info"]["version"] = "2.10.1"
         self.assertEqual(repair_plan(self.version, self.sha, read=self.data.__getitem__), [("deploy-mcp.yml", "main", ["-f", "release_tag=v2.10.2"])])
@@ -323,6 +353,17 @@ class ReconcilePlan(unittest.TestCase):
         workflow = (ROOT / ".github/workflows/release-assets.yml").read_text()
         self.assertIn("publication_guard.py", workflow)
         self.assertLess(workflow.index("publication_guard.py"), workflow.index("gh release upload"))
+
+
+class ReconcileRetry(unittest.TestCase):
+    def test_non_transient_http_errors_are_not_retried(self):
+        error = urllib.error.HTTPError("https://example.invalid", 401, "denied", {}, None)
+        with self.assertRaises(urllib.error.HTTPError):
+            retry_transient_read(
+                "https://example.invalid",
+                read=lambda _: (_ for _ in ()).throw(error),
+                sleep=lambda _: self.fail("must not sleep"),
+            )
 
 
 if __name__ == "__main__":
