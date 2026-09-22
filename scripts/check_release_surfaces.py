@@ -342,6 +342,29 @@ def check_once(*, fetch_fn=fetch, emit=print, skip_website=False, skip_homebrew=
             else:
                 problems.append(f"the npm package tarball is invalid ({exc}).")
 
+    try:
+        record = json.loads(fetch_fn(f"https://pypi.org/pypi/zero-slop/{shipped}/json"))
+        if not isinstance(record, dict) or not isinstance(record.get("info"), dict):
+            raise ValueError("missing package metadata")
+        info = record["info"]
+        if info.get("name") != "zero-slop" or info.get("version") != shipped:
+            raise ValueError("the exact-version record identifies a different package")
+        urls = record.get("urls")
+        if not isinstance(urls, list):
+            raise ValueError("missing distribution list")
+        files = {item.get("filename") for item in urls
+                 if isinstance(item, dict) and isinstance(item.get("size"), int) and item["size"] > 0}
+        if not {f"zero_slop-{shipped}-py3-none-any.whl", f"zero_slop-{shipped}.tar.gz"} <= files:
+            raise ValueError("wheel or source distribution is absent or empty")
+        emit(f"published to PyPI         {shipped}, wheel and sdist present")
+    except urllib.error.HTTPError as exc:
+        problems.append(f"the PyPI package endpoint returned HTTP {exc.code}.")
+    except Exception as exc:
+        if _unreachable(exc):
+            skipped.append(f"PyPI ({exc})")
+        else:
+            problems.append(f"the PyPI release is invalid ({exc}).")
+
     if not skip_homebrew:
         try:
             formula = fetch_fn(HOMEBREW)

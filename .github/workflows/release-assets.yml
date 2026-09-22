@@ -11,6 +11,7 @@ on:
 
 permissions:
   contents: write
+  actions: read
 
 jobs:
   attach:
@@ -22,6 +23,11 @@ jobs:
       - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
         with:
           python-version: "3.12"
+      - name: Require the exact validated release tag
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ github.event.release.tag_name }}
+        run: python3 .github/scripts/publication_guard.py --tag "$RELEASE_TAG" --sha "$(git rev-parse HEAD)"
       - name: build artifacts from the tagged tree
         run: |
           python3 scripts/build_plugin.py --check
@@ -30,7 +36,8 @@ jobs:
       - name: attach to the release
         env:
           GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ github.event.release.tag_name }}
         run: |
-          gh release upload "${{ github.event.release.tag_name }}" \
+          gh release upload "$RELEASE_TAG" \
             dist/zero-slop.zip dist/zero-slop-single-file.md \
             assets/Zero-Slop-One-Pager.pdf --clobber

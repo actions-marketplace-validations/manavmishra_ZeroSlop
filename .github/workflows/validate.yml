@@ -288,7 +288,7 @@ jobs:
 
   release:
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-    needs: [validate, website, mcp]
+    needs: [validate, action, website, mcp]
     permissions:
       actions: write
       contents: write

@@ -4,7 +4,7 @@ import test from "node:test";
 import { fileURLToPath } from "node:url";
 
 import { callRole, editorReply, signedEditorHeaders, tooLong, tooShort } from "./model";
-import { localRescue, meetsReleaseGate, runPipeline, scorerGuidance } from "./pipeline";
+import { localRescue, meetsReleaseGate, runPipeline, scorerGuidance, sourceClaimRisk, withinScorerLimit } from "./pipeline";
 import type { WritingReport } from "./types";
 
 const rescueScript = fileURLToPath(new URL("../../../scripts/rescue.py", import.meta.url));
@@ -78,6 +78,27 @@ test("complete editor output has bounded length", () => {
   assert.equal(tooShort("one two", "one two", "complete"), false);
   assert.equal(tooLong("short source", "x".repeat(1_001), "complete"), true);
   assert.equal(tooLong("x".repeat(20_000), "x".repeat(30_000), "complete"), false);
+});
+
+test("scorer candidate boundary counts Unicode code points at exactly 20,000", () => {
+  assert.equal(withinScorerLimit("x".repeat(20_000)), true);
+  assert.equal(withinScorerLimit("x".repeat(20_001)), false);
+  assert.equal(withinScorerLimit("😀".repeat(20_000)), true);
+  assert.equal(withinScorerLimit("😀".repeat(20_001)), false);
+});
+
+test("changed polarity claims require review while untouched claims allow other edits", () => {
+  const original = "The pilot did not reduce costs. We are excited to share the update.";
+  assert.equal(sourceClaimRisk(original, "The pilot reduced costs. We are sharing the update."), true);
+  assert.equal(sourceClaimRisk(original, "The pilot did not reduce costs. We are sharing the update."), false);
+  assert.equal(sourceClaimRisk("Setup time increased. Errors fell.", "Setup time fell. Errors increased."), true);
+  assert.equal(sourceClaimRisk("The importer maps headers.", "The importer does not map headers."), true);
+  assert.equal(sourceClaimRisk("The pilot may be viable.", "The pilot is viable."), true);
+  assert.equal(sourceClaimRisk("The pilot is viable.", "The pilot may be viable."), true);
+  assert.equal(sourceClaimRisk("The pilot was viable.", "The pilot is viable."), true);
+  assert.equal(sourceClaimRisk("The pilot is viable.", "The pilot will be viable."), true);
+  assert.equal(sourceClaimRisk("The pilot launched.", "The pilot launches."), true);
+  assert.equal(sourceClaimRisk("The pilot works.", "The pilot worked."), true);
 });
 
 test("scorer guidance is bounded and gives the editor exact targets", () => {
@@ -183,6 +204,156 @@ test("the complete MCP edit uses one remote model request", async () => {
     assert.equal(result.rolesCompleted, 8);
     assert.equal(result.finishingRounds, 1);
     assert.equal(result.independentModelChecks, 0);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test("oversized model output is dropped before ranking and a local edit still returns", async () => {
+  const original = "We are incredibly excited to share the update. Keep " + "x".repeat(11_900) + ".";
+  const local = localRescue(original);
+  const oversized = ("edited ".repeat(2_858)).slice(0, 20_001);
+  let rankCalls = 0;
+  const base = scorerHarness(original, local, 18);
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = (async () => Response.json({
+    rewrite: oversized, provider: "workers-ai", model: "editor", stored: false,
+  })) as typeof fetch;
+  try {
+    const result = await runPipeline({
+      SCORER: { fetch: async (input: RequestInfo | URL, init?: RequestInit) => {
+        if (new URL(String(input)).pathname === "/rank") {
+          rankCalls += 1;
+          const body = JSON.parse(String(init?.body));
+          assert.deepEqual(Object.keys(body.candidates), ["local edit"]);
+          assert.ok(Object.values(body.candidates).every((value) => withinScorerLimit(String(value))));
+        }
+        return base.fetch(input, init);
+      } },
+      SCORER_VERSION: "2.9.1", EDITOR_ENDPOINT: "https://zero-slop.ai/api/demo-rewrite",
+      EDITOR_SHARED_SECRET: signingKeyForTests(),
+    } as unknown as Env, { text: original, genre: "general" });
+    assert.equal(rankCalls, 1);
+    assert.equal(result.text, local);
+    assert.equal(result.status, "rewritten_with_warnings");
+    assert.equal(result.modelRequests, 1);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test("a 20,000-code-point model edit remains rankable", async () => {
+  const original = "A complete source note. " + "x".repeat(11_900) + ".";
+  const exact = ("edited ".repeat(2_858)).slice(0, 20_000);
+  let rankCalls = 0;
+  const base = scorerHarness(original, exact);
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = (async () => Response.json({
+    rewrite: exact, provider: "workers-ai", model: "editor", stored: false,
+  })) as typeof fetch;
+  try {
+    const result = await runPipeline({
+      SCORER: { fetch: async (input: RequestInfo | URL, init?: RequestInit) => {
+        if (new URL(String(input)).pathname === "/rank") {
+          rankCalls += 1;
+          const body = JSON.parse(String(init?.body));
+          assert.equal(body.candidates["one-call edit"], exact);
+        }
+        return base.fetch(input, init);
+      } },
+      SCORER_VERSION: "2.9.1", EDITOR_ENDPOINT: "https://zero-slop.ai/api/demo-rewrite",
+      EDITOR_SHARED_SECRET: signingKeyForTests(),
+    } as unknown as Env, { text: original, genre: "general" });
+    assert.equal(rankCalls, 1);
+    assert.equal(result.text, exact);
+    assert.equal(result.status, "rewritten");
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test("a reversed negative claim cannot be approved even if the scorer says it is preserved", async () => {
+  const original = "The pilot did not reduce costs. The importer is ready.";
+  const reversed = "The pilot reduced costs. The importer is ready.";
+  const base = scorerHarness(original, reversed);
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = (async () => Response.json({
+    rewrite: reversed, provider: "workers-ai", model: "editor", stored: false,
+  })) as typeof fetch;
+  try {
+    const result = await runPipeline({
+      SCORER: base, SCORER_VERSION: "2.9.1",
+      EDITOR_ENDPOINT: "https://zero-slop.ai/api/demo-rewrite", EDITOR_SHARED_SECRET: signingKeyForTests(),
+    } as unknown as Env, { text: original, genre: "general" });
+    assert.equal(result.text, reversed);
+    assert.equal(result.status, "rewritten_with_warnings");
+    assert.equal(result.passedFinalChecks, false);
+    assert.equal(result.factsPreserved, false);
+    assert.match(result.note, /source claim's negation, direction, certainty, or timing changed/);
+    assert.equal(result.modelRequests, 1);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test("modal and tense upgrades remain review-required despite a source-safe scorer verdict", async () => {
+  const cases = [
+    ["The pilot may be viable. The importer is ready.", "The pilot is viable. The importer is ready."],
+    ["The pilot was viable. The importer is ready.", "The pilot is viable. The importer is ready."],
+    ["The importer is ready. The pilot has a plan.", "The importer will be ready. The pilot has a plan."],
+    ["The pilot launched. The importer is ready.", "The pilot launches. The importer is ready."],
+  ] as const;
+  const originalFetch = globalThis.fetch;
+  try {
+    for (const [original, rewrite] of cases) {
+      let modelCalls = 0;
+      globalThis.fetch = (async () => {
+        modelCalls += 1;
+        return Response.json({ rewrite, provider: "workers-ai", model: "editor", stored: false });
+      }) as typeof fetch;
+      const result = await runPipeline({
+        SCORER: scorerHarness(original, rewrite), SCORER_VERSION: "2.9.1",
+        EDITOR_ENDPOINT: "https://zero-slop.ai/api/demo-rewrite", EDITOR_SHARED_SECRET: signingKeyForTests(),
+      } as unknown as Env, { text: original, genre: "general" });
+      assert.equal(result.text, rewrite);
+      assert.equal(result.status, "rewritten_with_warnings");
+      assert.equal(result.factsPreserved, false);
+      assert.equal(result.passedFinalChecks, false);
+      assert.match(result.note, /source claim's negation, direction, certainty, or timing changed/);
+      assert.equal(result.modelRequests, 1);
+      assert.equal(modelCalls, 1);
+    }
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test("a polarity-risk model edit yields to an available source-bound local edit", async () => {
+  const original = "We are incredibly excited to share some news about the release. The pilot did not reduce costs.";
+  const reversed = "We shared the release. The pilot reduced costs.";
+  const local = localRescue(original);
+  const base = scorerHarness(original, reversed);
+  let rankCalls = 0;
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = (async () => Response.json({
+    rewrite: reversed, provider: "workers-ai", model: "editor", stored: false,
+  })) as typeof fetch;
+  try {
+    const result = await runPipeline({
+      SCORER: { fetch: async (input: RequestInfo | URL, init?: RequestInit) => {
+        if (new URL(String(input)).pathname === "/rank") rankCalls += 1;
+        return base.fetch(input, init);
+      } },
+      SCORER_VERSION: "2.9.1", EDITOR_ENDPOINT: "https://zero-slop.ai/api/demo-rewrite",
+      EDITOR_SHARED_SECRET: signingKeyForTests(),
+    } as unknown as Env, { text: original, genre: "general" });
+    assert.equal(rankCalls, 2);
+    assert.equal(result.text, local);
+    assert.equal(result.status, "rewritten_with_warnings");
+    assert.equal(result.factsPreserved, true);
+    assert.equal(result.passedFinalChecks, false);
+    assert.match(result.note, /model response changed a source claim's negation, direction, certainty, or timing/);
+    assert.equal(result.modelRequests, 1);
   } finally {
     globalThis.fetch = originalFetch;
   }

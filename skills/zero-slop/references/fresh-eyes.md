@@ -52,7 +52,9 @@ and name the ambiguity.
 
 Return `approve without changes`, `changed`, or `unresolved — needs the writer`. If
 the finalizer changes the text, apply the complete revision and rerun the local score,
-fact, format, and structure checks once. Do not restart the AI pipeline. If the local
+fact, format, and structure checks once when scripts are available; otherwise
+repeat the manual source comparison and format/structure checks once and name the
+scripted checks as unavailable. Do not restart the AI pipeline. If the local
 recheck fails, return the safest source-preserving edit, identify the unresolved span,
 and do not describe it as fully verified. An unavailable finalizer is an abstention;
 it never starts another model request.

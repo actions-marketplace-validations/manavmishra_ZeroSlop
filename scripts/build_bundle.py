@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 """build_bundle — regenerate dist/zero-slop-single-file.md from the sources.
 
-ChatGPT Projects, Custom GPT Knowledge and Codex all want one pasteable file
+ChatGPT Projects, Custom GPT Knowledge and Codex can use one pasteable file
 rather than a repository, so the skill and its reference documents are
-concatenated into a single artifact. Maintaining that by hand does not work:
+concatenated into a single editorial-only artifact. Maintaining that by hand does not work:
 the bundle silently kept describing a 72-term lexicon for weeks after the real
 figure became 54, because nothing regenerated it and nothing checked.
 
@@ -42,11 +42,13 @@ HOW TO USE
   ChatGPT / ChatGPT at Work : Project → Instructions → paste this file.
                               Or Custom GPT → Knowledge → upload this file.
   Codex                     : save as AGENTS.md in your project.
-  Anything else             : paste it. It is self-contained.
+  Anything else             : paste it for the editorial workflow.
 
-The local writing check needs a shell and is not included here. With Code
-Interpreter enabled you can also upload scripts/slopscore.py from the repo to
-get the numbers; without it, use the reference lists and editorial checks below.
+This file has no executable scripts or data. Follow SKILL.md's scriptless path:
+use the included reference checklists and compare the final text to its source.
+Do not run the script commands below, report numeric scores, or claim full
+scripted verification from this file alone. To run local scoring and fidelity
+checks, install the complete skill package with its scripts and data.
 
 GENERATED FILE — do not edit. Run scripts/build_bundle.py after changing
 SKILL.md or anything in references/.

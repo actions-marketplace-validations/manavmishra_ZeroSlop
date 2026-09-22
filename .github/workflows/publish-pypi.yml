@@ -1,26 +1,18 @@
 name: publish to PyPI
 
 # The wheel carries the same scorer bytes as the skill, the plugin, and the
-# hosted Worker. Publishing follows the npm workflow's rule: the version in
-# package.json is the trigger, and the run is idempotent, so re-running on an
-# unchanged version is a no-op rather than an error.
+# hosted Worker. Publishing follows the npm workflow's validated, immutable
+# tag. Re-running an unchanged version is a no-op rather than an error.
 #
 # Authentication is PyPI Trusted Publishing over OIDC. There is no API token in
 # repository secrets to leak or rotate.
 
 on:
   workflow_dispatch:
-  push:
-    branches: [main]
-    paths:
-      - "package.json"
-      - "pyproject.toml"
-      - "packaging/**"
-      - "scripts/**"
-      - "data/**"
 
 permissions:
   contents: read
+  actions: read
 
 concurrency:
   group: publish-pypi
@@ -38,6 +30,12 @@ jobs:
       - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
         with:
           python-version: "3.11"
+
+      - name: Require the exact validated release tag
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: python3 .github/scripts/publication_guard.py --tag "$RELEASE_TAG" --sha "$(git rev-parse HEAD)"
 
       - id: version
         run: |

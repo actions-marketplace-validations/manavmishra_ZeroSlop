@@ -18,6 +18,20 @@ def missing_json(url, *, read=fetch_json):
         raise
 
 
+def pypi_release_present(record, version):
+    """Check the exact release's two distributions, not PyPI's latest pointer."""
+    if not isinstance(record, dict) or not isinstance(record.get("info"), dict):
+        return False
+    if record["info"].get("name") != "zero-slop" or record["info"].get("version") != version:
+        return False
+    urls = record.get("urls")
+    if not isinstance(urls, list):
+        return False
+    files = {entry.get("filename") for entry in urls
+             if isinstance(entry, dict) and isinstance(entry.get("size"), int) and entry["size"] > 0}
+    return {f"zero_slop-{version}-py3-none-any.whl", f"zero_slop-{version}.tar.gz"} <= files
+
+
 def repair_plan(version, sha, *, read=fetch_json):
     if not isinstance(version, str) or not VERSION.fullmatch(version):
         raise ValueError("a stable release version is required")
@@ -26,6 +40,16 @@ def repair_plan(version, sha, *, read=fetch_json):
     npm = publication_state(version, sha, fetch_fn=read)
     if npm["status"] == "unpublished":
         plan.append(("publish-npm.yml", tag, []))
+    pypi_url = f"https://pypi.org/pypi/zero-slop/{version}/json"
+    try:
+        pypi = read(pypi_url)
+    except urllib.error.HTTPError as exc:
+        if exc.code != 404:
+            raise
+        plan.append(("publish-pypi.yml", tag, []))
+    else:
+        if not pypi_release_present(pypi, version):
+            raise ValueError("PyPI has an incomplete or mismatched release; manual investigation is required")
     release = missing_json(f"{API}/releases/latest", read=read)
     assets = {asset.get("name") for asset in release.get("assets", [])
               if asset.get("state") == "uploaded" and isinstance(asset.get("size"), int) and asset["size"] > 0}
@@ -69,7 +93,7 @@ def main():
     tag = f"v{version}"
     reference = missing_json(f"{API}/git/ref/tags/{tag}")
     if not reference:
-        # sync-release independently verifies all three validation jobs before
+        # sync-release independently verifies all four validation jobs before
         # creating anything, including on this manual recovery path.
         subprocess.run(["gh", "workflow", "run", "sync-release.yml", "--ref", "main"], check=True)
         print("Requested validated release recovery; no version or tag was changed here.")

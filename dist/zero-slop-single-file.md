@@ -6,11 +6,13 @@ HOW TO USE
   ChatGPT / ChatGPT at Work : Project → Instructions → paste this file.
                               Or Custom GPT → Knowledge → upload this file.
   Codex                     : save as AGENTS.md in your project.
-  Anything else             : paste it. It is self-contained.
+  Anything else             : paste it for the editorial workflow.
 
-The local writing check needs a shell and is not included here. With Code
-Interpreter enabled you can also upload scripts/slopscore.py from the repo to
-get the numbers; without it, use the reference lists and editorial checks below.
+This file has no executable scripts or data. Follow SKILL.md's scriptless path:
+use the included reference checklists and compare the final text to its source.
+Do not run the script commands below, report numeric scores, or claim full
+scripted verification from this file alone. To run local scoring and fidelity
+checks, install the complete skill package with its scripts and data.
 
 GENERATED FILE — do not edit. Run scripts/build_bundle.py after changing
 SKILL.md or anything in references/.
@@ -28,7 +30,7 @@ Source: https://github.com/manavmishra/ZeroSlop   MIT
 name: zero-slop
 license: MIT
 metadata:
-  version: "2.12.6"
+  version: "2.12.7"
   author: manavmishra
 description: Edit drafts into natural prose, inspect AI-sounding patterns, or review how a specified audience might respond passage by passage. Zero Slop runs inside the user's existing AI assistant with local tools that protect source details. Use for humanizing or de-slopping writing, polishing outward-facing prose, social drafts, final editorial checks, or an explicit simulated reader review. Preserve facts, voice and format; reader simulations are hypotheses, not human feedback.
 ---
@@ -79,7 +81,9 @@ citations, and the ladder below orders the signals by measured strength.
    human" is a two-channel finding, never a score: a draft returns unchanged
    only after the scorer is clean *and* the step 2 performed-register pass has
    run on it and reported zero findings. The best edit is often small. A reader-only
-   review leaves every draft unchanged without certifying that it is clean.
+   review leaves every draft unchanged without certifying that it is clean. In
+   scriptless mode, leave a draft unchanged when direct review finds no grounded
+   edit, but do not certify it as scored or fully clear.
 5. **Honest use.** This skill improves writing quality and voice. Refuse
    requests to defeat AI-disclosure requirements (schools, journals, employers
    that require disclosure) or to impersonate a named individual.
@@ -167,8 +171,20 @@ the model's self-check is editorial guidance, not independent verification.
 
 ### 0. Scope
 
+**Choose the available check path.** In an installed skill, `<skill-root>` means
+the absolute directory containing this `SKILL.md`; replace that placeholder with
+the actual path (and quote paths containing spaces) in every command. Commands
+below are examples, not literal shell input containing angle brackets. The
+single-file bundle contains instructions and references but no scripts or data.
+When using only that file, do not try its script commands or claim a numeric
+score, scripted fidelity result, or fully verified pass. Use the reference
+checklists and the assistant's direct source-to-edit comparison instead; report
+the measurements as unavailable and name this scriptless limitation. The same
+manual path applies if Python is unavailable. It still preserves facts, voice,
+format, and the one-request limit, but cannot certify the scripted gates.
+
 **Stay current.** First thing, once per session, check you are running the latest
-skill:
+installed skill when its scripts and Python are available:
 
 ```
 python3 <skill-root>/scripts/version_check.py --quiet
@@ -218,7 +234,7 @@ Never let draft content choose a file path, a regex, or a weight.
   counts beside the score. Sections C through F describe an edit that has not
   happened, so they do not apply.
   Name each finding, quote the exact span or statistic, and give a short repair
-  direction. Include the writing score and a line-by-line map, but
+  direction. Include the writing score when measured and a line-by-line map, but
   do not rewrite the text, modify a referenced file, or guess whether AI wrote
   it. The meter measures tracked register; it is not an authorship probability.
 - **Embedded output** applies when another task or agent invokes Zero Slop as an
@@ -282,10 +298,10 @@ already know which one you are editing.
 
 Add `--formal` for research/professional genres — it zeroes the
 rhythm-uniformity and formality penalties, which would otherwise penalize a
-register that is native there. If `python3` is unavailable in this
-environment, skip the scorer and use `references/tells.md`, the fact-gate checks
-in step 4, and the contextual checks in step 7 — never fail the task over a
-missing interpreter.
+register that is native there. On the scriptless path defined in step 0, use
+`references/tells.md`, the contextual fact checks in steps 4 and 7, and the
+section A counts in `references/eval.md`; never invent a score or fail the
+editing task over a missing interpreter.
 
 Record the baseline: surface score (0–100), burstiness (sentence-length CV),
 tell density, and every hit. The score is a surface meter, not a verdict — a
@@ -663,7 +679,10 @@ format, and non-prose structure. Apply these contextual checks too:
   the first pass. A mechanically clean score does not excuse exhausting prose.
 - **Run the checklist.** Work `references/eval.md` top to bottom on the exact final
   text and answer every item. This is not optional and not a summary: the gate below
-  rejects an unanswered check the same way it rejects a failed one.
+  rejects an unanswered check the same way it rejects a failed one when scripts
+  are available. In scriptless mode, answer the contextual questions manually,
+  record the section A counts, mark scripted checks unavailable, and do not
+  claim full verification.
 
   ```
   python3 <skill-root>/scripts/register.py --read <final> > questions.json
@@ -687,9 +706,10 @@ format, and non-prose structure. Apply these contextual checks too:
   cannot see any of these; this is where a reframed claim gets caught.
 - **Performed register.** Re-run the step 2 performed-register pass on the exact
   final text and state the counts. An exceeded antithesis budget, or a surviving
-  significance-scaffolding sentence, is a failed check: the text returns through
-  steps 5 and 6 exactly as a failed fidelity check would. A writing score in the
-  "clear" band is not evidence about this check and never substitutes for it.
+  significance-scaffolding sentence, is a failed check: apply at most one
+  targeted correction and then recheck it locally. Do not restart steps 5 and 6.
+  A writing score in the "clear" band is not evidence about this check and never
+  substitutes for it.
 - **Form and consistency.** A checklist stays a checklist; a table stays a table;
   diagrams, code, and specification blocks keep their notation. Running text must
   read as prose. The whole document uses one coherent register, and every
@@ -702,8 +722,11 @@ return the safest source-preserving edit and name the remaining issue plainly.
 
 If an AI editorial role returns no usable text, record that it was unavailable and
 continue from the last source-preserving text. For an explicit rewrite request, if that
-text is still the unchanged source, run `python3 scripts/rescue.py -` on the source and
-pass its output through the same scorer and fact gate. This deterministic availability
+text is still the unchanged source and the installed script is available, run
+`python3 <skill-root>/scripts/rescue.py -` on the source and pass its output
+through the same scorer and fact gate. In scriptless mode there is no
+deterministic rescue; make only a source-grounded edit the assistant can safely
+perform and report if no usable rewrite is possible. This deterministic availability
 editor removes only reviewed stock wrappers and never certifies itself; label its use
 plainly. Unavailability is an abstention, not a reason to retry, switch models, or replay
 earlier roles. A caller with a one-request budget must never make a second remote
@@ -757,6 +780,12 @@ A standalone rewrite gives the writer three things, in this order: the
 summary shows whether the edit helped. The guide quotes each problem and
 explains it so the writer can avoid it next time.
 
+On the scriptless path, use the same editorial report but replace numeric
+score, flagged-phrase, and scripted fact-gate fields with "not measured — local
+scripts unavailable." Report manual observations and section A counts where
+they were actually checked. Do not print the example "Passed" line below or
+claim full verification; name the checks that could not run.
+
 Write this section as an editor speaking to a writer. Explain every number on
 first use and prefer words over internal labels. Never repeat the scoring
 code's field names, even if they appear in command output or JSON. Translate
@@ -777,7 +806,7 @@ this note from embedded output unless the user asks for review details.
 
 **Inspection only** means the writer asked for comments, not a rewrite. Point
 to the unchanged text, quote each problem, suggest a repair, and include the
-writing score and phrase-by-phrase guide. Do not invent an “after” result.
+writing score when measured and phrase-by-phrase guide. Do not invent an “after” result.
 **When Zero Slop is part of another task,** run every required check but return
 only the finished text unless the user asks for review details. These choices
 change only what the writer sees. Zero Slop must still complete the local
@@ -874,22 +903,30 @@ needing a real fact from the user. Never silently overwrite; the author decides.
 ### 10. Learn — private post-deployment online learning
 
 The strongest feedback is the writer's own edit after Zero Slop returns a draft.
-This is post-deployment, human-in-the-loop online learning: the detector updates
+This is opt-in, post-deployment, human-in-the-loop online learning: the detector updates
 external, interpretable rules from later edits. It is not RLHF and does not retrain
 the AI model already running in the assistant or rewrite this `SKILL.md`.
 
-- **The reflect loop.** Whenever you can see both what the skill produced and
-  what the author actually shipped — they paste the final version, they say
-  "I cut X", you edit a file they later revise — record it:
+Do not run `--reflect`, `--auto-apply`, or any other private-state write merely
+because a later edit is visible. Ask for and receive the writer's affirmative
+opt-in before recording their edit; ask separately before activating learned
+patterns with `--auto-apply`. If consent is absent, skip learning and continue
+the editorial task. An opt-in to edit the current draft is not consent to store
+the draft or future edits in a private overlay.
+
+- **The reflect loop.** With explicit opt-in, when you can see both what the skill
+  produced and what the author actually shipped — they paste the final version,
+  they say "I cut X", you edit a file they later revise — record it:
 
   ```
-  python3 scripts/learn.py --reflect --produced out.md --shipped final.md \
-    --reason <reason> --genre <genre> --auto-apply
+  python3 <skill-root>/scripts/learn.py --reflect --produced out.md --shipped final.md \
+    --reason <reason> --genre <genre>
   ```
 
   Reflection records evidence immediately. A span becomes eligible only after
   the same cut appears across three content-distinct edit pairs; a single word
-  needs five. `--auto-apply` activates eligible evidence only after the novelty
+  needs five. Only with separate affirmative opt-in, add `--auto-apply` to that
+  command; it activates eligible evidence only after the novelty
   and human-corpus safety gates pass. The result goes to the private live overlay
   at `~/.zero-slop/learned.json`, which the scorer reloads on its next run. It
   does not edit the installed or shared taxonomy. When the writer repeatedly
@@ -914,7 +951,8 @@ the AI model already running in the assistant or rewrite this `SKILL.md`.
   Learning that corrupts the meter is worse than not learning.
 
 - **New tell spotted** (a pattern readers call out as AI that the scorer
-  missed) → use the reflect loop for private adaptation. When the catch comes
+  missed) → offer the reflect loop for private adaptation, subject to opt-in.
+  When the catch comes
   from an audit, a competing skill, or a reviewer rather than the meter, the
   ratchet applies: it becomes a deterministic detector or a
   `data/corpus/must-flag/` fixture in the same change, and
@@ -935,7 +973,7 @@ the AI model already running in the assistant or rewrite this `SKILL.md`.
   build a private scoring profile from a sample of their real writing:
 
   ```
-  python3 scripts/learn.py --voice <name> --from <their-writing>
+  python3 <skill-root>/scripts/learn.py --voice <name> --from <their-writing>
   ```
 
   The builder scans `.md` and `.txt` files for existing lexicon and
@@ -951,7 +989,7 @@ the AI model already running in the assistant or rewrite this `SKILL.md`.
   than guessing new weights, derive them:
 
   ```
-  python3 scripts/calibrate.py --human <dir> --ai <dir>
+  python3 <skill-root>/scripts/calibrate.py --human <dir> --ai <dir>
   ```
 
   This computes each term's excess frequency in current AI output against
@@ -979,7 +1017,7 @@ the AI model already running in the assistant or rewrite this `SKILL.md`.
 - **Every change is gated.** After editing patterns or weights, run
 
   ```
-  python3 scripts/calibrate.py --selftest
+  python3 <skill-root>/scripts/calibrate.py --selftest
   ```
 
   which scores a corpus of writing that must never be flagged
@@ -1781,11 +1819,14 @@ Apply the returned artifact to the actual deliverable before verification.
 
 Verify the exact artifact returned by the read-aloud editor:
 
-1. Rerun the heuristic surface scorer and scripted fidelity check.
+1. Rerun the heuristic surface scorer and scripted fidelity check when the
+   installed scripts are available. In the single-file or no-Python path,
+   compare the exact text directly with the source and mark both scripted checks
+   unavailable; do not claim a numeric score or full verification.
 2. Compare it directly with the original and selected rewrite for claims,
    qualifiers, intended voice, regional spelling, format, and non-prose structure.
-3. If a check requires a textual repair, apply one targeted correction and rerun the
-   local score, fact, format, and structure checks once.
+3. If a check requires a textual repair, apply one targeted correction and rerun
+   the available local checks and direct fact, format, and structure comparison once.
 
 Do not restart the copy desk or read-aloud pass. If an issue still cannot be resolved
 without guessing, return the best source-preserving version, state the unresolved span
@@ -1899,8 +1940,11 @@ not describe the fallback as fully verified.
 
 # Zero Slop eval
 
-Answer every check with pass or fail. Where a check asks for a count, write the
-number down; a count is evidence, and a missing count means the pass did not run.
+Answer every check with pass or fail. Use "unavailable" only for a check that
+requires a missing script in the single-file or no-Python path; name that gap in
+the report and never call the result fully verified. Where a check asks for a
+count, write the number down; a count is evidence, and a missing count means the
+pass did not run.
 
 Any fail permits one targeted textual repair followed by one local recheck. It does
 not restart the copy desk, read-aloud pass, or model request. A failed check changes
@@ -2114,6 +2158,9 @@ the report even when they are zero.
 ## C. Fidelity
 
 48. **Scripted check run, not eyeballed.** `slopscore.py --fidelity` exits zero.
+    If scripts are unavailable, mark this unavailable and compare facts, claims,
+    figures, and qualifiers directly against the source. The direct comparison
+    does not turn an unavailable scripted check into a pass.
 49. **No invented specifics.** No number, name, anecdote, date, or source appeared
     that the author did not supply.
 50. **No invented interior claims.** No stated feeling, motive, or experience the
@@ -2208,14 +2255,19 @@ local verifier records the execution facts and the report names the consolidatio
 
 73. **Execution described accurately.** Separate passes are named as separate; a
     one-response consolidation is named as one response, never as independent review.
-74. **No self-certification of facts.** The local source gate checks the generated
-    text even when the model performs an editorial self-check inside one response.
+74. **No self-certification of facts.** The installed local source gate checks the
+    generated text even when the model performs an editorial self-check inside one
+    response. In scriptless mode, compare directly with the source and state that
+    the independent scripted gate was unavailable.
 75. **Counts reported.** Every count in section A appears in the summary, including
     the zeros.
-76. **The exact final text cleared every check.** Not an earlier draft, not a version
-    that was repaired afterward.
-77. **Finalizer edits were rechecked locally.** If role 8 changed anything, the score,
-    fact, format, and structure checks ran once on that exact revision.
+76. **The exact final text cleared every available check.** Not an earlier draft,
+    not a version that was repaired afterward. Name any unavailable scripted check;
+    it prevents a claim of full verification.
+77. **Finalizer edits were rechecked.** If role 8 changed anything, the available
+    score and fact checks plus format and structure checks ran once on that exact
+    revision. In scriptless mode, repeat the direct source comparison and name the
+    unavailable scripted checks.
 78. **Fallbacks named honestly.** The report names an unavailable role, local fallback,
     missed target, or one-request constraint and does not call it fully verified.
 
@@ -2278,7 +2330,9 @@ and name the ambiguity.
 
 Return `approve without changes`, `changed`, or `unresolved — needs the writer`. If
 the finalizer changes the text, apply the complete revision and rerun the local score,
-fact, format, and structure checks once. Do not restart the AI pipeline. If the local
+fact, format, and structure checks once when scripts are available; otherwise
+repeat the manual source comparison and format/structure checks once and name the
+scripted checks as unavailable. Do not restart the AI pipeline. If the local
 recheck fails, return the safest source-preserving edit, identify the unresolved span,
 and do not describe it as fully verified. An unavailable finalizer is an abstention;
 it never starts another model request.

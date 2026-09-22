@@ -1,5 +1,6 @@
 import { callRole } from "./model";
 import { checkCancelled } from "./cancellation";
+import { MAX_DRAFT_CHARS } from "./contract";
 import { rankRewrites, scoreWriting } from "./scorer";
 import type { Genre, PipelineResult, RankedRewrite, WritingReport } from "./types";
 
@@ -27,6 +28,66 @@ export function scorerGuidance(report: WritingReport): string {
 
 function sourceSafe(checked: RankedRewrite): boolean {
   return checked.preserved && !checked.invented && Boolean(checked.text.trim());
+}
+
+// The scorer protects concrete details, but cannot adjudicate changes in a
+// claim's negation, direction, certainty, or timing. Keep sentences with such
+// markers unchanged (apart from case and whitespace) for auto-approval. A
+// harmless paraphrase may therefore require review; a stronger unsupported
+// assertion must never be silently approved.
+const SENSITIVE_CLAIM_WORD = /\b(?:not|no|never|neither|nor|without|cannot|can't|won't|isn't|aren't|wasn't|weren't|doesn't|don't|didn't|hasn't|haven't|hadn't|shouldn't|couldn't|wouldn't|unable|unavailable|increase(?:d|s|ing)?|decrease(?:d|s|ing)?|rises?|rose|rising|falls?|fell|falling|drops?|dropped|dropping|reduc(?:e|ed|es|ing)|more|less|fewer|above|below|before|after|earlier|later|approved|rejected|may|might|could|can|should|likely|unlikely|possible|possibly|probable|probably|uncertain|estimated?|estimates|preliminary|suggests?|suggested|appears?|appeared|seems?|seemed|reportedly|allegedly|potentially|tentative|expected|forecast(?:ed)?|projected|was|were|had|did|will|would|previously|formerly|currently|now|yesterday|today|tomorrow|(?:last|next|this)\s+(?:week|month|year|quarter))\b/i;
+
+function sensitiveSentences(text: string): string[] {
+  return (text.replace(/’/g, "'").match(/[^.!?\n]+(?:[.!?]+|$)/g) ?? [])
+    .map((sentence) => sentence.trim().toLowerCase().replace(/\s+/g, " "))
+    .filter((sentence) => SENSITIVE_CLAIM_WORD.test(sentence))
+    .sort();
+}
+
+function regularVerbForms(text: string): Map<string, [number, number, number]> {
+  const forms = new Map<string, [number, number, number]>();
+  for (const word of text.toLowerCase().match(/\b[a-z]{4,}\b/g) ?? []) {
+    let stem = word;
+    let form = 1; // present or base form
+    if (word.endsWith("ied")) { stem = word.slice(0, -3) + "y"; form = 0; }
+    else if (word.endsWith("ed")) { stem = word.slice(0, -2); form = 0; }
+    else if (word.endsWith("ing")) { stem = word.slice(0, -3); form = 2; }
+    else if (word.endsWith("ies")) stem = word.slice(0, -3) + "y";
+    else if (word.endsWith("es")) stem = word.slice(0, -2);
+    else if (word.endsWith("s")) stem = word.slice(0, -1);
+    // "stopped" / "stopping" share the stem of "stops".
+    if (form !== 1) stem = stem.replace(/([^aeiou])\1$/, "$1");
+    if (stem.length < 3) continue;
+    const counts = forms.get(stem) ?? [0, 0, 0];
+    counts[form] = (counts[form] ?? 0) + 1;
+    forms.set(stem, counts);
+  }
+  return forms;
+}
+
+function regularVerbFormRisk(source: string, rewrite: string): boolean {
+  const before = regularVerbForms(source);
+  const after = regularVerbForms(rewrite);
+  for (const [stem, first] of before) {
+    const second = after.get(stem);
+    if (!second) continue;
+    const forms = first.map((count, index) => count + (second[index] ?? 0));
+    if (forms.filter((count) => count > 0).length < 2) continue;
+    if (first.some((count, index) => count !== second[index])) return true;
+  }
+  return false;
+}
+
+export function sourceClaimRisk(source: string, rewrite: string): boolean {
+  const before = sensitiveSentences(source);
+  const after = sensitiveSentences(rewrite);
+  return before.length !== after.length || before.some((sentence, index) => sentence !== after[index])
+    || regularVerbFormRisk(source, rewrite);
+}
+
+export function withinScorerLimit(text: string): boolean {
+  // Python's scorer counts Unicode code points, not UTF-16 code units.
+  return [...text].length <= MAX_DRAFT_CHARS;
 }
 
 export function meetsReleaseGate(report: WritingReport): boolean {
@@ -202,8 +263,12 @@ export async function runPipeline(env: Env, input: DeslopInput, clientAddress = 
   const rescue = localRescue(original);
   const candidates: Record<string, string> = {};
   const cleanedModelReply = modelReply?.text ? localRescue(modelReply.text) : "";
-  if (cleanedModelReply && cleanedModelReply !== original) candidates["one-call edit"] = cleanedModelReply;
-  if (rescue && rescue !== original && rescue !== modelReply?.text) candidates["local edit"] = rescue;
+  if (cleanedModelReply && cleanedModelReply !== original && withinScorerLimit(cleanedModelReply)) {
+    candidates["one-call edit"] = cleanedModelReply;
+  }
+  if (rescue && rescue !== original && rescue !== cleanedModelReply && withinScorerLimit(rescue)) {
+    candidates["local edit"] = rescue;
+  }
 
   if (Object.keys(candidates).length === 0) {
     return {
@@ -215,12 +280,14 @@ export async function runPipeline(env: Env, input: DeslopInput, clientAddress = 
     };
   }
 
+  const modelClaimUncertain = Boolean(candidates["one-call edit"]
+    && sourceClaimRisk(original, candidates["one-call edit"]));
   let checked = await rankRewrites(env, original, candidates, input.genre, control);
   checkCancelled(control);
-  if (!sourceSafe(checked) && rescue && rescue !== original) {
+  if ((!sourceSafe(checked) || sourceClaimRisk(original, checked.text)) && candidates["local edit"]) {
     const localOnly = await rankRewrites(env, original, { "local edit": rescue }, input.genre, control);
     checkCancelled(control);
-    if (sourceSafe(localOnly)) checked = localOnly;
+    if (sourceSafe(localOnly) && !sourceClaimRisk(original, localOnly.text)) checked = localOnly;
   }
   if (!sourceSafe(checked)) {
     return {
@@ -237,14 +304,17 @@ export async function runPipeline(env: Env, input: DeslopInput, clientAddress = 
   const after = await scoreWriting(env, current, input.genre, control);
   checkCancelled(control);
   const selectedModelEdit = checked.name === "one-call edit";
-  const passed = selectedModelEdit && meetsReleaseGate(after);
+  const claimUncertain = sourceClaimRisk(original, current);
+  const passed = selectedModelEdit && !claimUncertain && meetsReleaseGate(after);
   const warnings: string[] = [];
   if (!selectedModelEdit) {
     const safeModelEdit = checked.ranked.some((candidate) =>
       candidate.name === "one-call edit" && candidate.preserved && !candidate.invented);
-    warnings.push(safeModelEdit
-      ? "the local edit ranked ahead of a source-preserving model edit on the measured writing checks"
-      : "the model response was unavailable or did not pass the source check, so the local edit was used");
+    warnings.push(modelClaimUncertain
+      ? "the model response changed a source claim's negation, direction, certainty, or timing, so the local edit was used"
+      : safeModelEdit
+        ? "the local edit ranked ahead of a source-preserving model edit on the measured writing checks"
+        : "the model response was unavailable or did not pass the source check, so the local edit was used");
   }
   if (after.score >= SCORE_GATE) warnings.push("the writing score remains above 25");
   if (after.highWeightFlags > 0) warnings.push("a strong stock-writing signal remains");
@@ -255,6 +325,7 @@ export async function runPipeline(env: Env, input: DeslopInput, clientAddress = 
   if (after.register.findings.length > 0 || (after.shape.measured && after.shape.broetry)) {
     warnings.push("a document-level writing check remains");
   }
+  if (claimUncertain) warnings.push("a source claim's negation, direction, certainty, or timing changed and needs human review");
 
   return {
     text: current,
@@ -262,7 +333,7 @@ export async function runPipeline(env: Env, input: DeslopInput, clientAddress = 
     before,
     after,
     scoreChange: Math.round((after.score - before.score) * 10) / 10,
-    factsPreserved: true,
+    factsPreserved: !claimUncertain,
     passedFinalChecks: passed,
     independentModelChecks: 0,
     modelRequests: 1,

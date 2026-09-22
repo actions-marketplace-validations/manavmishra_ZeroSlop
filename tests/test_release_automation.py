@@ -26,7 +26,7 @@ class PublicationGuard(unittest.TestCase):
             f"{API}/actions/workflows/validate.yml/runs?event=push&branch=main&head_sha={self.sha}&per_page=10": {
                 "workflow_runs": [{"id": 10, "head_sha": self.sha, "head_branch": "main", "event": "push", "run_number": 1}]},
             f"{API}/actions/runs/10/jobs?filter=latest&per_page=100": {
-                "jobs": [{"name": name, "status": "completed", "conclusion": "success"} for name in ("validate", "website", "mcp")]},
+                "jobs": [{"name": name, "status": "completed", "conclusion": "success"} for name in ("validate", "action", "website", "mcp")]},
             f"{RAW}/{self.sha}/package.json": {"name": "zero-slop", "version": "2.10.2"},
             f"{RAW}/main/package.json": {"name": "zero-slop", "version": "2.10.2"},
             f"{API}/git/ref/tags/{self.tag}": {"ref": f"refs/tags/{self.tag}", "object": {"type": "commit", "sha": self.sha}},
@@ -43,7 +43,8 @@ class PublicationGuard(unittest.TestCase):
     def test_missing_failed_skipped_or_incomplete_validation_blocks(self):
         key = f"{API}/actions/runs/10/jobs?filter=latest&per_page=100"
         for bad in ([], [{"name": "validate", "status": "completed", "conclusion": "success"}],
-                    [{"name": n, "status": "completed", "conclusion": "skipped"} for n in ("validate", "website", "mcp")]):
+                    [{"name": n, "status": "completed", "conclusion": "skipped"} for n in ("validate", "action", "website", "mcp")],
+                    [{"name": n, "status": "completed", "conclusion": "success"} for n in ("validate", "website", "mcp")]):
             with self.subTest(bad=bad):
                 self.data[key] = {"jobs": bad}
                 with self.assertRaises(ValueError): self.check()
@@ -198,6 +199,7 @@ class ReconcilePlan(unittest.TestCase):
         self.data = {
             "https://registry.npmjs.org/zero-slop/latest": {"name": "zero-slop", "version": self.version, "gitHead": self.sha},
             f"https://registry.npmjs.org/zero-slop/{self.version}": {"name": "zero-slop", "version": self.version, "gitHead": self.sha},
+            f"https://pypi.org/pypi/zero-slop/{self.version}/json": {"info": {"name": "zero-slop", "version": self.version}, "urls": [{"filename": f"zero_slop-{self.version}-py3-none-any.whl", "size": 100}, {"filename": f"zero_slop-{self.version}.tar.gz", "size": 100}]},
             f"{API}/releases/latest": {"tag_name": "v2.10.2", "draft": False, "assets": [{"name": n, "state": "uploaded", "size": 100} for n in ("zero-slop.zip", "zero-slop-single-file.md", "Zero-Slop-One-Pager.pdf")]},
             f"{MCP}/health": {"ok": True, "editorConfigured": True, "version": self.version, "scorer": {"ok": True, "scorerVersion": self.version}},
             f"{MCP}/.well-known/mcp/server-card.json": {"serverInfo": {"version": self.version}},
@@ -243,6 +245,36 @@ class ReconcilePlan(unittest.TestCase):
             return self.data[url]
         self.assertEqual(repair_plan(self.version, self.sha, read=read), [("publish-npm.yml", "v2.10.2", []), ("publish-mcp.yml", "v2.10.2", [])])
 
+    def test_missing_pypi_distribution_dispatches_exact_tag(self):
+        url = f"https://pypi.org/pypi/zero-slop/{self.version}/json"
+        def read(target):
+            if target == url:
+                raise urllib.error.HTTPError(target, 404, "Not Found", {}, None)
+            return self.data[target]
+        self.assertEqual(repair_plan(self.version, self.sha, read=read),
+                         [("publish-pypi.yml", "v2.10.2", [])])
+
+    def test_partial_or_mismatched_pypi_record_blocks_blind_republication(self):
+        url = f"https://pypi.org/pypi/zero-slop/{self.version}/json"
+        for record in ({},
+                       {"info": {"name": "zero-slop", "version": self.version}, "urls": []},
+                       {"info": {"name": "another-project", "version": self.version}, "urls": []},
+                       {"info": None, "urls": []}):
+            with self.subTest(record=record):
+                data = copy.deepcopy(self.data)
+                data[url] = record
+                with self.assertRaisesRegex(ValueError, "PyPI"):
+                    repair_plan(self.version, self.sha, read=data.__getitem__)
+
+    def test_pypi_outage_does_not_trigger_a_blind_publish(self):
+        url = f"https://pypi.org/pypi/zero-slop/{self.version}/json"
+        def read(target):
+            if target == url:
+                raise TimeoutError("PyPI unavailable")
+            return self.data[target]
+        with self.assertRaisesRegex(TimeoutError, "PyPI unavailable"):
+            repair_plan(self.version, self.sha, read=read)
+
     def test_existing_version_with_stale_latest_blocks_repeated_noop_dispatch(self):
         self.data["https://registry.npmjs.org/zero-slop/latest"]["version"] = "2.10.1"
         with self.assertRaisesRegex(ValueError, "npm latest promotion requires maintainer auth"):
@@ -279,6 +311,18 @@ class ReconcilePlan(unittest.TestCase):
         sync = (ROOT / ".github/workflows/sync-release.yml").read_text()
         self.assertIn('gh workflow run publish-npm.yml --ref "$TAG"', sync)
         self.assertIn("--before-tag", sync)
+
+    def test_pypi_only_publishes_from_a_validated_tag(self):
+        workflow = (ROOT / ".github/workflows/publish-pypi.yml").read_text()
+        self.assertNotIn("  push:", workflow)
+        self.assertIn("publication_guard.py", workflow)
+        sync = (ROOT / ".github/workflows/sync-release.yml").read_text()
+        self.assertIn('gh workflow run publish-pypi.yml --ref "$TAG"', sync)
+
+    def test_release_asset_fallback_checks_validated_tag_before_writing(self):
+        workflow = (ROOT / ".github/workflows/release-assets.yml").read_text()
+        self.assertIn("publication_guard.py", workflow)
+        self.assertLess(workflow.index("publication_guard.py"), workflow.index("gh release upload"))
 
 
 if __name__ == "__main__":

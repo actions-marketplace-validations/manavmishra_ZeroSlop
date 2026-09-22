@@ -114,11 +114,14 @@ Apply the returned artifact to the actual deliverable before verification.
 
 Verify the exact artifact returned by the read-aloud editor:
 
-1. Rerun the heuristic surface scorer and scripted fidelity check.
+1. Rerun the heuristic surface scorer and scripted fidelity check when the
+   installed scripts are available. In the single-file or no-Python path,
+   compare the exact text directly with the source and mark both scripted checks
+   unavailable; do not claim a numeric score or full verification.
 2. Compare it directly with the original and selected rewrite for claims,
    qualifiers, intended voice, regional spelling, format, and non-prose structure.
-3. If a check requires a textual repair, apply one targeted correction and rerun the
-   local score, fact, format, and structure checks once.
+3. If a check requires a textual repair, apply one targeted correction and rerun
+   the available local checks and direct fact, format, and structure comparison once.
 
 Do not restart the copy desk or read-aloud pass. If an issue still cannot be resolved
 without guessing, return the best source-preserving version, state the unresolved span
