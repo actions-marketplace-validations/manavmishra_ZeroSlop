@@ -33,6 +33,14 @@ class RuntimeCompatibilityTests(unittest.TestCase):
         new["score"] = 13
         self.assertFalse(reports_match(old, new))
 
+    def test_readme_style_release_pair_preserves_historical_measurements(self):
+        self.assertTrue(exact_code_compatible("2.11.6", "2.12.3"))
+        old = {"scorer": {"version": "2.11.6"}, "score": 12}
+        new = {"scorer": {"version": "2.12.3"}, "score": 12}
+        self.assertTrue(reports_match(old, new))
+        new["score"] = 13
+        self.assertFalse(reports_match(old, new))
+
     def test_manifests_cannot_be_used_for_another_pair(self):
         new_evidence = EVIDENCE.with_name("runtime-compatibility-2.12.1.json")
         self.assertFalse(exact_code_compatible("2.11.6", "2.12.1", evidence_path=EVIDENCE))
@@ -41,7 +49,7 @@ class RuntimeCompatibilityTests(unittest.TestCase):
         self.assertFalse(exact_code_compatible("2.11.6", "2.12.1", evidence_path=docs_evidence))
 
     def test_unknown_or_reversed_versions_rejected(self):
-        for pair in [("2.11.5", "2.12.0"), ("2.11.6", "2.12.3"),
+        for pair in [("2.11.5", "2.12.0"), ("2.11.6", "2.12.4"),
                      ("2.12.0", "2.12.1"), ("2.12.1", "2.11.6"),
                      ("2.12.0", "2.11.6"), ("2.11.6", "2.11.6"),
                      (None, "2.12.0")]:
@@ -55,14 +63,14 @@ class RuntimeCompatibilityTests(unittest.TestCase):
                 target = root / name
                 target.parent.mkdir(parents=True, exist_ok=True)
                 shutil.copyfile(ROOT / name, target)
-            for version in ("2.12.0", "2.12.1", "2.12.2"):
+            for version in ("2.12.0", "2.12.1", "2.12.2", "2.12.3"):
                 self.assertTrue(exact_code_compatible("2.11.6", version, root=root))
             for name in PINNED_FILES:
                 with self.subTest(file=name):
                     target = root / name
                     original = target.read_bytes()
                     target.write_bytes(original + b"\n")
-                    for version in ("2.12.0", "2.12.1", "2.12.2"):
+                    for version in ("2.12.0", "2.12.1", "2.12.2", "2.12.3"):
                         self.assertFalse(exact_code_compatible("2.11.6", version, root=root))
                     target.write_bytes(original)
 

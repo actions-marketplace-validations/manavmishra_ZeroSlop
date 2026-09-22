@@ -2110,6 +2110,19 @@ class DocsMatchReality(unittest.TestCase):
         self.assertIn("two-way replay used Zero Slop v2.6.0", compact)
         self.assertIn("releases/latest/download/zero-slop.zip", readme)
 
+    def test_readme_demo_keeps_animated_and_reduced_motion_assets(self):
+        readme = self.docs["README.md"]
+        for asset in (
+            "assets/zero-slop-demo.mp4",
+            "assets/zero-slop-demo.webp",
+            "assets/zero-slop-demo.gif",
+            "assets/zero-slop-demo-poster.png",
+        ):
+            with self.subTest(asset=asset):
+                self.assertIn(asset, readme)
+                self.assertTrue((ROOT / asset).is_file())
+        self.assertIn('media="(prefers-reduced-motion: reduce)"', readme)
+
     def test_readme_worked_example_is_source_bound_and_measured(self):
         """The showcase rewrite must not invent the substance it claims to protect.
 
@@ -3249,7 +3262,7 @@ class SearchCorpus(unittest.TestCase):
         self.assertEqual(result["panel"]["held_out_test_items"], 21)
         self.assertIn("not human field accuracy", result["limits"])
 
-    def test_readme_performance_table_matches_the_structured_record(self):
+    def test_readme_performance_summary_matches_the_structured_record(self):
         result = json.loads((ROOT / "bench" / "performance-results.json").read_text())
         self.assertGreaterEqual(result["measurement"]["warmup_runs_per_probe"], 1)
         self.assertGreaterEqual(result["measurement"]["default_measured_runs"], 5)
@@ -3258,15 +3271,10 @@ class SearchCorpus(unittest.TestCase):
         scorer = result["scorer"]
         self.assertIn(f"{scorer['median_batch_seconds']:.4f} seconds", readme)
         self.assertIn(f"{scorer['median_documents_per_second']:.1f} per second", readme)
-        self.assertIn(f"{scorer['median_large_document_seconds']:.4f} seconds", readme)
-        self.assertIn(
-            f"{max(scorer['pathological_input_seconds'].values()):.4f} seconds",
-            readme,
-        )
-        self.assertIn(
-            f"{result['learning']['reflect_seconds']:.4f} seconds",
-            readme,
-        )
+        # The short README names the headline measurement; the linked record
+        # retains large-document, stress-case and learning timings without
+        # making the quick start read like a benchmark table.
+        self.assertIn("[Machine and results](bench/performance-results.json)", readme)
 
     def test_version_comparison_record_is_current_and_arithmetically_sound(self):
         import hashlib
