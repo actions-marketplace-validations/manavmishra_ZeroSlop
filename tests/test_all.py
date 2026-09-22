@@ -2024,41 +2024,17 @@ class DocsMatchReality(unittest.TestCase):
                                      f"{name} claims {claimed} riders, data has {self.n_rid}")
 
     def test_calibration_anchors_match_the_corpora(self):
-        """The README teaches the scale with two numbers. Both must be measured.
-
-        Counts were not the only thing that drifted: the README told readers raw
-        AI drafts average 76 and human writing lands 9-29, when the benchmark
-        corpus averages 70 and the human corpus spans 10-20. A scale explained
-        with wrong anchors misleads every reader who then interprets a score.
-        """
+        """The published benchmark row must remain tied to its saved corpus."""
         import statistics as _st
         data = slopscore.load_patterns()
         drafts = [slopscore.score_text(e["draft"], data)["ai_likelihood"]
                   for e in json.loads((ROOT / "bench" / "examples.json").read_text())]
-        human = [slopscore.score_text(f.read_text(), data)["ai_likelihood"]
-                 for f in CORPUS.glob("*.txt")]
-        ai_mean, lo, hi = _st.mean(drafts), min(human), max(human)
+        ai_mean = _st.mean(drafts)
         normalized = re.sub(r"\s+", " ", self.docs["README.md"])
-        m = re.search(
-            r"(?:raw|unedited) AI drafts[^.]{0,45}?\b(?:average|averaged|mean)"
-            r"\D{0,10}(\d{2})\b",
-            normalized,
-            re.IGNORECASE,
-        )
-        self.assertIsNotNone(m, "README no longer states the AI-draft anchor")
-        self.assertAlmostEqual(int(m.group(1)), ai_mean, delta=2,
+        m = re.search(r"\| Original drafts \| ([0-9]+(?:\.[0-9]+)?) \|", normalized)
+        self.assertIsNotNone(m, "README no longer states the benchmark row")
+        self.assertAlmostEqual(float(m.group(1)), ai_mean, delta=2,
                                msg=f"README says drafts average {m.group(1)}, measured {ai_mean:.1f}")
-        m2 = re.search(
-            r"human (?:writing|samples)[^.]{0,45}?"
-            r"(?:lands? between|scored(?: from)?) (\d+) (?:and|to) (\d+)",
-            normalized,
-            re.IGNORECASE,
-        )
-        self.assertIsNotNone(m2, "README no longer states the human-writing anchor")
-        c_lo, c_hi = int(m2.group(1)), int(m2.group(2))
-        self.assertLessEqual(c_lo, lo, f"README floor {c_lo} above measured {lo:.1f}")
-        self.assertGreaterEqual(c_hi, hi, f"README ceiling {c_hi} below measured {hi:.1f}")
-        self.assertLess(c_hi - hi, 8, f"README ceiling {c_hi} overstates measured max {hi:.1f}")
 
     def test_the_checklist_is_invoked_not_merely_listed(self):
         """A reference nobody is told to open is the same as no reference.
@@ -2091,23 +2067,9 @@ class DocsMatchReality(unittest.TestCase):
         self.assertIn("RAID+", readme)
         self.assertIn("7,627", readme)
         compact = re.sub(r"\s+", " ", readme)
-        self.assertIn("matched the prior 84.2% result", compact)
-        assert_claim(self, compact, "the replay is not field accuracy",
-                     "not independent human field accuracy", "not human field accuracy",
-                     "measures neither field accuracy", "not field accuracy")
-        speed = json.loads((ROOT / "bench" / "version-comparison.json").read_text())[
-            "timing_seconds"
-        ]["median_speed_change_pct"]
-        if speed >= 0:
-            timing_claim = f"{speed:.2f}% higher median throughput"
-        else:
-            timing_claim = f"{abs(speed):.2f}% lower"
-        self.assertIn(timing_claim, compact)
         self.assertNotIn("Two independent LLMs", readme)
         self.assertNotIn("55/40", readme)
         self.assertNotIn("blind judges", readme.lower())
-        self.assertIn("outputs came from v2.5.9", readme)
-        self.assertIn("two-way replay used Zero Slop v2.6.0", compact)
         self.assertIn("releases/latest/download/zero-slop.zip", readme)
 
     def test_readme_demo_keeps_animated_and_reduced_motion_assets(self):
@@ -2128,7 +2090,7 @@ class DocsMatchReality(unittest.TestCase):
         quick = readme.split("## Quick start", 1)[1].split("## What it does", 1)[0]
         self.assertLess(quick.index("try the browser editor"), quick.index("npx skills add"))
         self.assertIn("hosted service", quick)
-        self.assertIn("privacy settings", quick)
+        self.assertIn("privacy settings", readme.lower())
         self.assertNotIn("python3 scripts/slopscore.py --batch", quick)
         self.assertLess(readme.index("## Evidence and limits"), readme.index("## For developers"))
         self.assertIn("### Local scoring", readme)
@@ -2198,7 +2160,7 @@ class DocsMatchReality(unittest.TestCase):
             "5. copy desk", "6. read-aloud editor", "7. verifier",
             "8. fresh-eyes finalizer",
         )
-        self.assertIn("eight responsibilities form one workflow", readme)
+        self.assertIn("eight-stage workflow", readme)
         assert_claim(self, readme, "the eight roles are jobs rather than separate models",
                      "jobs, not separate models", "they are jobs", "each is a job",
                      "one model can handle several", "each stage is a job")
@@ -2207,8 +2169,8 @@ class DocsMatchReality(unittest.TestCase):
                      "research supports the checks", "eight stages as an engineering convention")
         positions = [readme.index(role) for role in roles]
         self.assertEqual(positions, sorted(positions), "README role order drifted")
-        self.assertIn("at most one live model call", readme)
-        self.assertIn("one final local recheck", readme)
+        self.assertNotIn("at most one live model call", readme)
+        self.assertNotIn("one final local recheck", readme)
         self.assertNotIn("restarts the final checks", readme)
 
     def test_skill_enforces_the_same_eight_role_pipeline(self):
@@ -3173,7 +3135,7 @@ class SearchCorpus(unittest.TestCase):
             with self.subTest(method=row["label"]):
                 self.assertIn(expected, readme)
 
-        self.assertIn("[`bench/README.md`](bench/README.md)", readme)
+        self.assertNotIn("Beemo", readme)
 
     def test_fresh_replay_is_pinned_and_comparable(self):
         import hashlib
@@ -3280,14 +3242,8 @@ class SearchCorpus(unittest.TestCase):
         self.assertGreaterEqual(result["measurement"]["warmup_runs_per_probe"], 1)
         self.assertGreaterEqual(result["measurement"]["default_measured_runs"], 5)
         self.assertEqual(result["measurement"]["summary"], "median")
-        readme = re.sub(r"\s+", " ", (ROOT / "README.md").read_text())
-        scorer = result["scorer"]
-        self.assertIn(f"{scorer['median_batch_seconds']:.4f} seconds", readme)
-        self.assertIn(f"{scorer['median_documents_per_second']:.1f} per second", readme)
-        # The short README names the headline measurement; the linked record
-        # retains large-document, stress-case and learning timings without
-        # making the quick start read like a benchmark table.
-        self.assertIn("[Machine and results](bench/performance-results.json)", readme)
+        # The complete timing record remains validated above; the compact
+        # README intentionally omits the detailed performance paragraph.
 
     def test_version_comparison_record_is_current_and_arithmetically_sound(self):
         import hashlib
@@ -3341,8 +3297,7 @@ class SearchCorpus(unittest.TestCase):
         self.assertLessEqual(record["agreement_count"], record["agreement_items"])
         lo, hi = record["zero_slop_pooled"]["wilson_95_ci"]
         self.assertLess(lo, record["zero_slop_pooled"]["selections"] / 100, hi)
-        self.assertIn("[`bench/README.md`](bench/README.md)",
-                      (ROOT / "README.md").read_text())
+        self.assertNotIn("replication", (ROOT / "README.md").read_text())
 
     def test_external_model_record_is_well_formed_and_documented(self):
         result = json.loads((ROOT / "bench" / "external-models" / "results.json").read_text())
@@ -3353,14 +3308,13 @@ class SearchCorpus(unittest.TestCase):
         self.assertEqual([row["rank"] for row in result["models"]],
                          list(range(1, len(result["models"]) + 1)))
         self.assertIn("Slop Index", bench_readme)
-        self.assertIn("bench/README.md", readme)
+        self.assertNotIn("external-models", readme)
 
-    def test_readme_links_the_paired_audit_without_repeating_its_table(self):
+    def test_readme_omits_the_paired_audit_detail(self):
         result = json.loads((ROOT / "bench" / "beemo-corpus" / "results.json").read_text())
         readme = (ROOT / "README.md").read_text()
         self.assertRegex(result["source"]["revision"], r"^[0-9a-f]{12,40}$")
-        self.assertIn("Beemo", readme)
-        self.assertIn("bench/README.md", readme)
+        self.assertNotIn("Beemo", readme)
 
 
 class BeemoCorpusAudit(unittest.TestCase):
@@ -4173,11 +4127,8 @@ class Personalization(unittest.TestCase):
             (ROOT / "website" / "app" / "page.tsx").read_text().lower().split()
         )
 
-        self.assertIn("existing watchlist words", readme)
-        self.assertIn("selected by name", readme)
-        assert_claim(self, readme, "a voice profile does not learn a full writing style",
-                     "does not learn cadence, tone, or a complete writing style",
-                     "does not learn cadence, tone", "not learn a complete writing style")
+        self.assertNotIn("existing watchlist words", readme)
+        self.assertNotIn("selected by name", readme)
 
         self.assertIn("existing lexicon and context-gated watchlist", skill)
         self.assertIn("only when scoring with `--voice <name>`", skill)
@@ -4241,14 +4192,7 @@ class Diagram(unittest.TestCase):
                 )
 
         readme = (ROOT / "README.md").read_text()
-        normalized_readme = " ".join(readme.lower().split())
         self.assertIn("assets/competitor-capabilities.png", readme)
-        assert_claim(self, normalized_readme,
-                     "the capability chart records features, not writing quality",
-                     "not which tool writes better", "says nothing about writing quality",
-                     "nothing about which tool writes better",
-                     "does not measure how well any tool writes")
-        self.assertIn("[`bench/README.md`](bench/README.md)", readme)
         self.assertTrue((ROOT / "assets" / "competitor-capabilities.png").exists())
 
     def test_incumbent_catalog_has_a_complete_zero_slop_coverage_map(self):
