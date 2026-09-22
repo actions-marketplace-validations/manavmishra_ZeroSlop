@@ -203,11 +203,11 @@ export class McpCounter {
         return Response.json({ error: "request_ledger_unavailable" }, { status: 503 });
       }
     }
-    if (request.method === "POST" && url.pathname === "/reserve-editor") {
+    if (request.method === "POST" && (url.pathname === "/reserve-editor" || url.pathname === "/reserve-openrouter")) {
       try {
         const input = await readBoundedJson(new Response(request.body, { headers: request.headers }), 512);
         this.budget ??= new EditorBudgetStore(this.storage, this.env);
-        return await this.budget.reserve(input);
+        return await this.budget.reserve(input, Date.now, url.pathname === "/reserve-openrouter" ? "openrouter" : "workers-ai");
       } catch {
         return Response.json({ error: "budget_unavailable" }, { status: 503 });
       }

@@ -1,8 +1,8 @@
 # Zero Slop — Terms of Service
 
-**Effective 10 September 2026 · Version 1.1**
+**Effective 22 September 2026 · Version 1.2**
 
-Operator name corrected in this version. All other terms are unchanged.
+Hosted editing provider information updated in this version.
 
 These terms are an agreement between you and Garage Capital Ventures LLC ("we", "us", and "our"). They
 cover the Zero Slop website, the free browser editor, and the optional hosted MCP connector.
@@ -149,7 +149,8 @@ are not free to share.
 
 ## 14. Third-party services
 
-The hosted services run on Cloudflare and use Cloudflare's model endpoints for editing. Your use of
+The hosted services run on Cloudflare. Hosted editing uses Cloudflare Workers AI or OpenRouter
+with zero-data-retention routing. Your use of
 Zero Slop through a third-party client — ChatGPT, Claude, Cursor, Codex, or any other MCP host — is
 also governed by that provider's own terms and privacy policy, which we do not control.
 

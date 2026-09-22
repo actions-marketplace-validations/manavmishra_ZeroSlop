@@ -5,7 +5,7 @@ import { rankRewrites, scoreWriting } from "./scorer";
 import type { Genre, PipelineResult, RankedRewrite, WritingReport } from "./types";
 
 const SCORE_GATE = 25;
-const PIPELINE_BUDGET_MS = 36_000;
+const PIPELINE_BUDGET_MS = 75_000;
 
 export type DeslopInput = {
   text: string;
@@ -268,9 +268,11 @@ export async function runPipeline(env: Env, input: DeslopInput, clientAddress = 
     audience: input.audience ?? "",
     localChecks: JSON.parse(scorerGuidance(before)),
   };
-  // Exactly one outbound editor request. The endpoint itself is also limited
-  // to one provider invocation, so this cannot fan out into a retry ladder.
-  const modelReply = await callRole(env, "complete", original, diagnostics, deadline, clientAddress, control);
+  // Exactly one outbound editor request. The endpoint may use one bounded
+  // alternate provider if its primary cannot return a usable edit.
+  let observedProviderCalls: 0 | 1 | 2 | null = null;
+  const modelReply = await callRole(env, "complete", original, diagnostics, deadline, clientAddress, control,
+    (count) => { observedProviderCalls = count; });
   checkCancelled(control);
   const rescue = localRescue(original);
   const candidates: Record<string, string> = {};
@@ -288,7 +290,7 @@ export async function runPipeline(env: Env, input: DeslopInput, clientAddress = 
         original, "unchanged_service_unavailable", before, started, env.SCORER_VERSION,
         "The single model request did not return a usable edit, and the conservative local editor found no safe textual change.",
       ),
-      modelRequests: 1,
+      modelRequests: modelReply?.providerCalls ?? observedProviderCalls ?? 1,
     };
   }
 
@@ -307,7 +309,7 @@ export async function runPipeline(env: Env, input: DeslopInput, clientAddress = 
         original, "unchanged_verification_failed", before, started, env.SCORER_VERSION,
         "Every proposed edit changed protected source material, so the original is preserved.",
       ),
-      modelRequests: 1,
+      modelRequests: modelReply?.providerCalls ?? observedProviderCalls ?? 1,
       rolesCompleted: modelReply ? 6 : 2,
     };
   }
@@ -348,7 +350,7 @@ export async function runPipeline(env: Env, input: DeslopInput, clientAddress = 
     factsPreserved: !claimUncertain,
     passedFinalChecks: passed,
     independentModelChecks: 0,
-    modelRequests: 1,
+    modelRequests: modelReply?.providerCalls ?? observedProviderCalls ?? 1,
     rolesCompleted: selectedModelEdit ? 8 : 4,
     finishingRounds: 1,
     scorerVersion: env.SCORER_VERSION,

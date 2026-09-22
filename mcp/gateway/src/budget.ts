@@ -51,6 +51,7 @@ export class EditorBudgetStore {
   constructor(private readonly storage: DurableObjectStorage, private readonly env: Env) {
     storage.sql.exec("CREATE TABLE IF NOT EXISTS editor_budget_days (day TEXT PRIMARY KEY, reserved INTEGER NOT NULL CHECK(reserved >= 0))");
     storage.sql.exec("CREATE TABLE IF NOT EXISTS editor_budget_clients (day TEXT NOT NULL, client_key TEXT NOT NULL, calls INTEGER NOT NULL, minute INTEGER NOT NULL, minute_calls INTEGER NOT NULL, PRIMARY KEY(day, client_key))");
+    storage.sql.exec("CREATE TABLE IF NOT EXISTS editor_openrouter_days (day TEXT PRIMARY KEY, calls INTEGER NOT NULL CHECK(calls >= 0))");
   }
 
   cleanup(now = Date.now()): void {
@@ -58,24 +59,29 @@ export class EditorBudgetStore {
     this.storage.transactionSync(() => {
       this.storage.sql.exec("DELETE FROM editor_budget_clients WHERE day < ?", day);
       this.storage.sql.exec("DELETE FROM editor_budget_days WHERE day < ?", day);
+      this.storage.sql.exec("DELETE FROM editor_openrouter_days WHERE day < ?", day);
     });
   }
 
-  async reserve(input: unknown, clock = Date.now): Promise<Response> {
+  async reserve(input: unknown, clock = Date.now, provider: "workers-ai" | "openrouter" = "workers-ai"): Promise<Response> {
     const now = clock();
     if (!input || typeof input !== "object" || Array.isArray(input)) return new Response(null, { status: 400 });
     const body = input as Record<string, unknown>;
     const day = new Date(now).toISOString().slice(0, 10);
-    if (Object.keys(body).sort().join(",") !== "clientKey,day,neurons" || body.day !== day
+    const expectedKeys = provider === "openrouter" ? "clientKey,day" : "clientKey,day,neurons";
+    if (Object.keys(body).sort().join(",") !== expectedKeys || body.day !== day
       || typeof body.clientKey !== "string" || !/^[a-f0-9]{64}$/.test(body.clientKey)
-      || typeof body.neurons !== "number" || !Number.isSafeInteger(body.neurons) || body.neurons < 1 || body.neurons > 8000) {
+      || (provider === "workers-ai" && (typeof body.neurons !== "number" || !Number.isSafeInteger(body.neurons) || body.neurons < 1 || body.neurons > 8000))) {
       return new Response(null, { status: 400 });
     }
-    const neurons = body.neurons;
+    const neurons = provider === "workers-ai" ? body.neurons as number : 0;
     const clientKey = body.clientKey;
     const daily = configuredLimit(this.env.EDITOR_DAILY_NEURONS, 8000, 8000);
     const clientDaily = configuredLimit(this.env.EDITOR_CLIENT_DAILY_CALLS, 5, 20);
     const clientMinute = configuredLimit(this.env.EDITOR_CLIENT_MINUTE_CALLS, 2, 5);
+    // OpenRouter's free allowance is account-wide. Leave headroom for other
+    // account activity; adding models or keys does not multiply this pool.
+    const openRouterDaily = configuredLimit(this.env.EDITOR_OPENROUTER_DAILY_CALLS, 800, 1000);
     const nextDay = (Math.floor(now / DAY_MS) + 1) * DAY_MS;
     if (nextDay - now <= 60000) return Response.json({ allowed: false, retryAfterSeconds: Math.max(1, Math.ceil((nextDay - now) / 1000)) });
     // Persist expiration before granting anything. Even an idle object purges
@@ -88,16 +94,22 @@ export class EditorBudgetStore {
     this.cleanup(grantedAt);
     const result = this.storage.transactionSync(() => {
       const total = this.storage.sql.exec<{ reserved: number }>("SELECT reserved FROM editor_budget_days WHERE day = ?", day).toArray()[0]?.reserved ?? 0;
+      const openRouterCalls = provider === "openrouter"
+        ? this.storage.sql.exec<{ calls: number }>("SELECT calls FROM editor_openrouter_days WHERE day = ?", day).toArray()[0]?.calls ?? 0
+        : 0;
       const client = this.storage.sql.exec<{ calls: number; minute: number; minute_calls: number }>("SELECT calls, minute, minute_calls FROM editor_budget_clients WHERE day = ? AND client_key = ?", day, clientKey).toArray()[0];
       const minute = Math.floor(grantedAt / 60_000);
       const minuteCalls = client?.minute === minute ? client.minute_calls : 0;
-      if (neurons > daily - total || (client?.calls ?? 0) >= clientDaily) {
+      if ((provider === "workers-ai" && neurons > daily - total)
+        || (provider === "openrouter" && openRouterCalls >= openRouterDaily)
+        || (client?.calls ?? 0) >= clientDaily) {
         return { allowed: false, retryAfterSeconds: Math.max(1, Math.ceil((nextDay - grantedAt) / 1000)) };
       }
       if (minuteCalls >= clientMinute) {
         return { allowed: false, retryAfterSeconds: Math.max(1, Math.ceil(((minute + 1) * 60_000 - grantedAt) / 1000)) };
       }
-      this.storage.sql.exec("INSERT INTO editor_budget_days(day, reserved) VALUES (?, ?) ON CONFLICT(day) DO UPDATE SET reserved = editor_budget_days.reserved + excluded.reserved", day, neurons);
+      if (provider === "workers-ai") this.storage.sql.exec("INSERT INTO editor_budget_days(day, reserved) VALUES (?, ?) ON CONFLICT(day) DO UPDATE SET reserved = editor_budget_days.reserved + excluded.reserved", day, neurons);
+      else this.storage.sql.exec("INSERT INTO editor_openrouter_days(day, calls) VALUES (?, 1) ON CONFLICT(day) DO UPDATE SET calls = editor_openrouter_days.calls + 1", day);
       this.storage.sql.exec("INSERT INTO editor_budget_clients(day, client_key, calls, minute, minute_calls) VALUES (?, ?, 1, ?, 1) ON CONFLICT(day, client_key) DO UPDATE SET calls = editor_budget_clients.calls + 1, minute = excluded.minute, minute_calls = ?", day, clientKey, minute, minuteCalls + 1);
       return { allowed: true, retryAfterSeconds: null };
     });

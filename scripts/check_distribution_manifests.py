@@ -104,8 +104,8 @@ def main() -> int:
             "gemini-extension.json does not point at the public HTTP server", problems)
     require(gemini_server.get("includeTools") == ["deslop"],
             "Gemini extension must expose only the deslop tool", problems)
-    require(gemini_server.get("timeout") == 45_000,
-            "Gemini extension must use the bounded 45-second timeout", problems)
+    require(gemini_server.get("timeout") == 90_000,
+            "Gemini extension must allow the bounded fallback deadline", problems)
 
     registry = manifests["MCP Registry"]
     require(registry.get("remotes") == [{"type": "streamable-http", "url": MCP_URL}],

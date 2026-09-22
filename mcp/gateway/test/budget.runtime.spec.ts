@@ -8,8 +8,25 @@ const key = (index: number) => index.toString(16).padStart(64, "0");
 const reserve = (stub: DurableObjectStub, body: unknown) => stub.fetch("https://counter.internal/reserve-editor", {
   method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body),
 });
+const reserveOpenRouter = (stub: DurableObjectStub, body: unknown) => stub.fetch("https://counter.internal/reserve-openrouter", {
+  method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body),
+});
 
 describe("shared editor budget in SQLite", () => {
+  it("bounds OpenRouter account usage and shares the client allowance with Workers AI", async () => {
+    const stub = env.MCP_COUNTER.getByName(`budget-openrouter-${crypto.randomUUID()}`);
+    const body = { day: day(), clientKey: key(1) };
+    expect((await (await reserve(stub, { ...body, neurons: 100 })).json<{ allowed: boolean }>()).allowed).toBe(true);
+    expect((await (await reserveOpenRouter(stub, body)).json<{ allowed: boolean }>()).allowed).toBe(true);
+    expect((await (await reserveOpenRouter(stub, body)).json<{ allowed: boolean }>()).allowed).toBe(false);
+    const all = await Promise.all(Array.from({ length: 810 }, (_, i) => reserveOpenRouter(stub, { day: day(), clientKey: key(i + 2) })));
+    const grants = await Promise.all(all.map((response) => response.json<{ allowed: boolean }>()));
+    expect(grants.filter((grant) => grant.allowed)).toHaveLength(799);
+    await evictDurableObject(stub);
+    const denied = await (await reserveOpenRouter(stub, { day: day(), clientKey: key(99) })).json<{ allowed: boolean }>();
+    expect(denied.allowed).toBe(false);
+    expect((await reserveOpenRouter(stub, { ...body, text: "private draft" })).status).toBe(400);
+  });
   it("never overspends the global allowance under concurrent distinct-client requests and eviction", async () => {
     const stub = env.MCP_COUNTER.getByName(`budget-global-${crypto.randomUUID()}`);
     const responses = await Promise.all(Array.from({ length: 100 }, (_, index) => reserve(stub, { day: day(), clientKey: key(index), neurons: 100 })));

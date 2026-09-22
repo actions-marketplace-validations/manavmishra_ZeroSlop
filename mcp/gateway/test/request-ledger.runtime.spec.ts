@@ -17,6 +17,26 @@ function setup() {
   return { id, stub, event, receipt };
 }
 describe("durable request ledger", () => {
+  it("migrates old receipts before recording a two-provider request", async () => {
+    const stub = env.MCP_COUNTER.getByName(`ledger-upgrade-${crypto.randomUUID()}`);
+    await runInDurableObject(stub, async (_instance, state) => {
+      const oldId = crypto.randomUUID();
+      state.storage.sql.exec("DROP TABLE IF EXISTS request_ledger");
+      state.storage.sql.exec(`CREATE TABLE request_ledger (
+        id TEXT PRIMARY KEY, started_at INTEGER, finished_at INTEGER,
+        status INTEGER CHECK(status BETWEEN 100 AND 599),
+        model_requests INTEGER CHECK(model_requests IN (0, 1)), expires_at INTEGER NOT NULL
+      )`);
+      state.storage.sql.exec("INSERT INTO request_ledger VALUES (?, ?, ?, 200, 1, ?)", oldId, Date.now() - 1000, Date.now(), Date.now() + 60_000);
+      const ledger = new RequestLedgerStore(state.storage);
+      expect((await ledger.receipt(oldId).json()).modelRequests).toBe(1);
+      const nextId = crypto.randomUUID();
+      expect((await ledger.record({ id: nextId, phase: "start" })).status).toBe(204);
+      expect((await ledger.record({ id: nextId, phase: "finish", status: 200, modelRequests: 2 })).status).toBe(204);
+      expect((await ledger.receipt(nextId).json()).modelRequests).toBe(2);
+      expect(new RequestLedgerStore(state.storage)).toBeDefined();
+    });
+  });
   it("deduplicates concurrent events, rejects contradictory finishes, and survives eviction", async () => {
     const { stub, event, receipt } = setup();
     const missing = await receipt();

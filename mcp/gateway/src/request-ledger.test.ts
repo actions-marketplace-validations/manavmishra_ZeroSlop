@@ -14,5 +14,6 @@ test("ledger ids are UUIDv4 and map deterministically to exactly 32 shards", () 
 test("ledger events reject unknown or phase-inappropriate fields and invalid values", () => {
   assert.deepEqual(parseRequestLedgerEvent({ id, phase: "start" }), { id, phase: "start" });
   assert.deepEqual(parseRequestLedgerEvent({ id, phase: "finish", status: 200, modelRequests: 1 }), { id, phase: "finish", status: 200, modelRequests: 1 });
-  for (const input of [null, [], { id, phase: "start", text: "private" }, { id, phase: "start", status: 200 }, { id, phase: "finish", status: 99 }, { id, phase: "finish", status: 600 }, { id, phase: "finish", modelRequests: 2 }, { id, phase: "finish", status: "200" }, { id, phase: "finish", modelRequests: null }]) assert.equal(parseRequestLedgerEvent(input), null);
+  assert.deepEqual(parseRequestLedgerEvent({ id, phase: "finish", status: 200, modelRequests: 2 }), { id, phase: "finish", status: 200, modelRequests: 2 });
+  for (const input of [null, [], { id, phase: "start", text: "private" }, { id, phase: "start", status: 200 }, { id, phase: "finish", status: 99 }, { id, phase: "finish", status: 600 }, { id, phase: "finish", modelRequests: 3 }, { id, phase: "finish", status: "200" }, { id, phase: "finish", modelRequests: null }]) assert.equal(parseRequestLedgerEvent(input), null);
 });

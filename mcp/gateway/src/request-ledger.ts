@@ -2,7 +2,7 @@ import { readBoundedJson } from "./bounded-json";
 
 export const REQUEST_LEDGER_RETENTION_MS = 48 * 60 * 60 * 1000;
 const UUID_V4 = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
-type LedgerEvent = { id: string; phase: "start" | "finish"; status?: number; modelRequests?: 0 | 1 };
+type LedgerEvent = { id: string; phase: "start" | "finish"; status?: number; modelRequests?: 0 | 1 | 2 };
 type LedgerRow = { id: string; started_at: number | null; finished_at: number | null; status: number | null; model_requests: number | null; expires_at: number };
 
 export function requestLedgerId(value: unknown): string | null {
@@ -28,7 +28,7 @@ export function parseRequestLedgerEvent(value: unknown): LedgerEvent | null {
     result.status = value.status;
   }
   if ("modelRequests" in value) {
-    if (value.modelRequests !== 0 && value.modelRequests !== 1) return null;
+    if (value.modelRequests !== 0 && value.modelRequests !== 1 && value.modelRequests !== 2) return null;
     result.modelRequests = value.modelRequests;
   }
   return result;
@@ -45,8 +45,23 @@ export class RequestLedgerStore {
     storage.sql.exec(`CREATE TABLE IF NOT EXISTS request_ledger (
       id TEXT PRIMARY KEY, started_at INTEGER, finished_at INTEGER,
       status INTEGER CHECK(status BETWEEN 100 AND 599),
-      model_requests INTEGER CHECK(model_requests IN (0, 1)), expires_at INTEGER NOT NULL
+      model_requests INTEGER CHECK(model_requests IN (0, 1, 2)), expires_at INTEGER NOT NULL
     )`);
+    // Earlier releases allowed only 0–1 model requests. Rebuild that table
+    // atomically so existing 48-hour receipts survive the two-provider release.
+    const definition = storage.sql.exec<{ sql: string }>("SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'request_ledger'").one().sql;
+    if (/model_requests\s+INTEGER\s+CHECK\s*\(model_requests\s+IN\s*\(0,\s*1\)\)/i.test(definition)) {
+      storage.transactionSync(() => {
+        storage.sql.exec(`CREATE TABLE request_ledger_upgrade (
+          id TEXT PRIMARY KEY, started_at INTEGER, finished_at INTEGER,
+          status INTEGER CHECK(status BETWEEN 100 AND 599),
+          model_requests INTEGER CHECK(model_requests IN (0, 1, 2)), expires_at INTEGER NOT NULL
+        )`);
+        storage.sql.exec("INSERT INTO request_ledger_upgrade SELECT id, started_at, finished_at, status, model_requests, expires_at FROM request_ledger");
+        storage.sql.exec("DROP TABLE request_ledger");
+        storage.sql.exec("ALTER TABLE request_ledger_upgrade RENAME TO request_ledger");
+      });
+    }
     storage.sql.exec("CREATE INDEX IF NOT EXISTS request_ledger_expiry ON request_ledger(expires_at)");
   }
 

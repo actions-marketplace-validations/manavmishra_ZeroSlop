@@ -66,8 +66,13 @@ function scorerHarness(original: string, rewrite: string, afterScore = 9.5, mode
 test("editor response requires a confirmed no-store path", () => {
   assert.deepEqual(
     editorReply({ rewrite: "  edited  ", provider: "router", model: "writer", stored: false }),
-    { text: "edited", rung: "router:writer" },
+    { text: "edited", rung: "router:writer", providerCalls: 1 },
   );
+  assert.deepEqual(
+    editorReply({ rewrite: "edited", provider: "openrouter", model: "qwen/free", stored: false, providerCalls: 2 }),
+    { text: "edited", rung: "openrouter:qwen/free", providerCalls: 2 },
+  );
+  assert.equal(editorReply({ rewrite: "edited", provider: "router", model: "writer", stored: false, providerCalls: 3 }), null);
   assert.equal(editorReply({ rewrite: "edited", provider: "router", model: "writer" }), null);
   assert.equal(editorReply({ rewrite: "edited", provider: "router", model: "writer", stored: true }), null);
   assert.equal(editorReply({ rewrite: "edited", provider: "router\nspoof", model: "writer", stored: false }), null);
@@ -218,6 +223,39 @@ test("the complete MCP edit uses one remote model request", async () => {
   } finally {
     globalThis.fetch = originalFetch;
   }
+});
+
+test("the MCP result reports both provider attempts behind one editor request", async () => {
+  const original = "We are incredibly excited to share that Kairoset 4.0 marks a transformative milestone for our journey.";
+  const rewrite = "Kairoset 4.0 is available to the team.";
+  const originalFetch = globalThis.fetch;
+  let requests = 0;
+  globalThis.fetch = (async () => {
+    requests += 1;
+    return Response.json({ rewrite, provider: "openrouter", model: "qwen/qwen3.8-27b:free", stored: false, providerCalls: 2 });
+  }) as typeof fetch;
+  try {
+    const result = await runPipeline({
+      SCORER: scorerHarness(original, rewrite), SCORER_VERSION: "2.12.9",
+      EDITOR_ENDPOINT: "https://zero-slop.ai/api/demo-rewrite", EDITOR_SHARED_SECRET: signingKeyForTests(),
+    } as unknown as Env, { text: original, genre: "general" });
+    assert.equal(requests, 1);
+    assert.equal(result.modelRequests, 2);
+    assert.equal(result.status, "rewritten");
+  } finally { globalThis.fetch = originalFetch; }
+});
+
+test("an unavailable two-provider edit retains its measured attempt count", async () => {
+  const original = "We are incredibly excited to share that Kairoset 4.0 marks a transformative milestone for our journey.";
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = (async () => Response.json({ error: "editor_unavailable", providerCalls: 2 }, { status: 503 })) as typeof fetch;
+  try {
+    const result = await runPipeline({
+      SCORER: scorerHarness(original, localRescue(original)), SCORER_VERSION: "2.12.9",
+      EDITOR_ENDPOINT: "https://zero-slop.ai/api/demo-rewrite", EDITOR_SHARED_SECRET: signingKeyForTests(),
+    } as unknown as Env, { text: original, genre: "general" });
+    assert.equal(result.modelRequests, 2);
+  } finally { globalThis.fetch = originalFetch; }
 });
 
 test("oversized model output is dropped before ranking and a local edit still returns", async () => {
