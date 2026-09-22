@@ -1,10 +1,15 @@
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="assets/logo/zero-slop-logo-reversed.svg">
+  <img src="assets/logo/zero-slop-logo-primary.svg" width="180" alt="Zero Slop">
+</picture>
+
 # Zero Slop
 
 Find the canned phrases in an AI-assisted draft, then edit them without losing what you meant to say.
 
 Zero Slop is a free, open-source agent skill. Your AI assistant reads and edits the writing; local tools score the result and check names, numbers, links, quotations, code, tables, and paths against the original. [Try it in your browser](https://zero-slop.ai/try/) or [install the skill](#quick-start).
 
-<img alt="Version 2.12.3" src="https://img.shields.io/badge/version-2.12.3-72528F?color=C15732">
+<img alt="Version 2.12.4" src="https://img.shields.io/badge/version-2.12.4-72528F?color=C15732">
 
 ## Problem
 
@@ -85,7 +90,7 @@ The MCP connection options are in [`mcp/README.md`](mcp/README.md).
 The CLI sends a file to the hosted editor without changing the file on disk:
 
 ```sh
-npx --yes zero-slop@2.12.3 deslop draft.md --genre professional
+npx --yes zero-slop@2.12.4 deslop draft.md --genre professional
 ```
 
 Use `-` for stdin and `--json` for structured output. `--require-approved` prints the result but exits nonzero when review is needed. Requires Node.js 22+; offline `score` also needs Python 3. [CLI options and privacy](docs/cli.md).
