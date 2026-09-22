@@ -2123,6 +2123,19 @@ class DocsMatchReality(unittest.TestCase):
                 self.assertTrue((ROOT / asset).is_file())
         self.assertIn('media="(prefers-reduced-motion: reduce)"', readme)
 
+    def test_readme_routes_new_readers_before_developer_reference(self):
+        readme = self.docs["README.md"]
+        quick = readme.split("## Quick start", 1)[1].split("## What it does", 1)[0]
+        self.assertLess(quick.index("try the browser editor"), quick.index("npx skills add"))
+        self.assertIn("hosted service", quick)
+        self.assertIn("privacy settings", quick)
+        self.assertNotIn("python3 scripts/slopscore.py --batch", quick)
+        self.assertLess(readme.index("## Evidence and limits"), readme.index("## For developers"))
+        self.assertIn("### Local scoring", readme)
+        self.assertLess(readme.index("## For developers"), readme.index("npx zero-slop score draft.md"))
+        self.assertLess(readme.index("## For developers"), readme.index("python3 scripts/slopscore.py --batch"))
+        self.assertLess(readme.index("## For developers"), readme.index("https://mcp.zero-slop.ai/v1/deslop"))
+
     def test_readme_worked_example_is_source_bound_and_measured(self):
         """The showcase rewrite must not invent the substance it claims to protect.
 

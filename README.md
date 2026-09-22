@@ -5,15 +5,15 @@
 
 # Zero Slop
 
-Find the canned phrases in an AI-assisted draft, then edit them without losing what you meant to say.
+Find and remove AI slop in your writing. Get rid of workslop without losing your core intent and message.
 
-Zero Slop is a free, open-source agent skill. Your AI assistant reads and edits the writing; local tools score the result and check names, numbers, links, quotations, code, tables, and paths against the original. [Try it in your browser](https://zero-slop.ai/try/) or [install the skill](#quick-start).
+Zero Slop is a free, open-source set of instructions and checks for an AI assistant. The assistant edits your draft. The local tools flag stock language and compare names, numbers, links, quotations, code, tables, and paths with the original. If your ChatGPT setup does not support skills, [try the browser editor](https://zero-slop.ai/try/) without installing anything.
 
-<img alt="Version 2.12.4" src="https://img.shields.io/badge/version-2.12.4-72528F?color=C15732">
+<img alt="Version 2.12.5" src="https://img.shields.io/badge/version-2.12.5-72528F?color=C15732">
 
-## Problem
+## Why it exists
 
-AI can give you a grammatically clean draft that still sounds like everybody else's: the same opening, the same tidy contrasts, the same closing thought. Asking for a rewrite can make things worse if the assistant quietly changes a number or smooths away your point. Zero Slop gives it an editing brief and checks the details afterward. A writing score helps you spot familiar patterns, but it cannot tell who wrote the text.
+An AI draft can be grammatical and still sound like everybody else's. Asking for a rewrite can also change a number or smooth away your point. Zero Slop tells your assistant what to cut, then checks the result against your original. The writing score finds patterns worth reviewing; it cannot tell who wrote the text.
 
 <a href="assets/zero-slop-demo.mp4?v=dark-shell-restored-20260906">
   <picture>
@@ -47,7 +47,9 @@ Use it on launch posts, changelogs, emails, or research summaries. You can score
 
 ## Quick start
 
-Install it in an assistant that supports skills:
+To try the browser editor, use a sample you are comfortable sending to a hosted service. Compare its edit with your original before you use it. The slash command below works only in an assistant where you have installed the skill.
+
+If you use Claude Code, Codex, or another assistant that supports skills, install Zero Slop there:
 
 ```sh
 npx skills add manavmishra/ZeroSlop --global
@@ -57,53 +59,11 @@ npx skills add manavmishra/ZeroSlop --global
 /zero-slop (your writing)
 ```
 
-To find problems without rewriting, use `/zero-slop inspect (your writing)`. You can also [try the browser editor](https://zero-slop.ai/try/) before installing anything.
+To see the flagged passages without an edit, use `/zero-slop inspect (your writing)`.
 
-### Other ways to install
+The command above works with Claude Code and Codex. In Claude.ai, upload the [skill ZIP](https://github.com/manavmishra/ZeroSlop/releases/latest/download/zero-slop.zip). [Other installation paths](DISTRIBUTION.md) include Gemini CLI and remote MCP connections where your client allows them. You can also [score a file locally](#local-scoring) without a model call.
 
-The `npx skills add` command works with Claude Code and Codex; [other compatible clients](DISTRIBUTION.md) have install notes. Gemini CLI users can run `gemini extensions install https://github.com/manavmishra/ZeroSlop --auto-update`. For Claude.ai, upload the [skill ZIP](https://github.com/manavmishra/ZeroSlop/releases/latest/download/zero-slop.zip); for file-upload assistants, use the [single-file bundle](https://github.com/manavmishra/ZeroSlop/releases/latest/download/zero-slop-single-file.md).
-
-For a local score without a model call:
-
-```sh
-npx zero-slop score draft.md
-```
-
-From a cloned checkout, check a folder against the review threshold of 25:
-
-```sh
-python3 scripts/slopscore.py --batch drafts/ --gate 25
-```
-
-Installed checks run locally; editing through the skill follows your assistant's privacy settings. The [hosted MCP service](mcp/README.md) and browser editor process drafts remotely with Workers AI.
-
-For an MCP client, use this endpoint:
-
-```text
-https://mcp.zero-slop.ai/mcp
-```
-
-The MCP connection options are in [`mcp/README.md`](mcp/README.md).
-
-## Edit from the command line
-
-The CLI sends a file to the hosted editor without changing the file on disk:
-
-```sh
-npx --yes zero-slop@2.12.4 deslop draft.md --genre professional
-```
-
-Use `-` for stdin and `--json` for structured output. `--require-approved` prints the result but exits nonzero when review is needed. Requires Node.js 22+; offline `score` also needs Python 3. [CLI options and privacy](docs/cli.md).
-
-## Call the REST API
-
-```sh
-curl --fail-with-body --max-time 75 https://mcp.zero-slop.ai/v1/deslop \
-  -H 'Content-Type: application/json' \
-  --data '{"text":"Maya owns the pricing review.","genre":"professional"}'
-```
-
-REST returns the same result as MCP. Check `status` before using an edit. Shared free capacity accepts up to 20,000 Unicode code points after trimming. [API reference](docs/rest-api.md) · [OpenAPI contract](https://mcp.zero-slop.ai/openapi.json)
+The installed checks run locally, while the assistant that edits your text follows its own privacy settings. The browser editor and [hosted MCP service](mcp/README.md) send drafts to Workers AI. Check your organization's rules before using any of these with sensitive text.
 
 ## What it does
 
@@ -210,6 +170,56 @@ The checks draw on research into [predictable machine wording](https://arxiv.org
 You decide whether to teach Zero Slop a preference. Give it an original output, your edited version, and the reason for the change. It does not watch your files, browser, or publishing tools. Private data stays under `$ZERO_SLOP_HOME`; it is not committed to this repository or used to retrain a model.
 
 A profile selected by name can exempt existing watchlist words. It does not learn your cadence, tone, or entire writing style.
+
+## For developers
+
+### Hosted MCP
+
+The endpoint for compatible clients is:
+
+```text
+https://mcp.zero-slop.ai/mcp
+```
+
+[Connection options](mcp/README.md).
+
+For Gemini CLI, run `gemini extensions install https://github.com/manavmishra/ZeroSlop --auto-update`. For file-upload assistants, download the [single-file bundle](https://github.com/manavmishra/ZeroSlop/releases/latest/download/zero-slop-single-file.md).
+
+### Local scoring
+
+Score a file without sending it to a model:
+
+```sh
+npx zero-slop score draft.md
+```
+
+From a cloned checkout, check a folder against the review threshold of 25:
+
+```sh
+python3 scripts/slopscore.py --batch drafts/ --gate 25
+```
+
+### Command line
+
+The CLI sends a file to the hosted editor without changing the file on disk:
+
+```sh
+npx --yes zero-slop@2.12.5 deslop draft.md --genre professional
+```
+
+Use `-` for stdin and `--json` for structured output. `--require-approved` prints the result but exits nonzero when review is needed. Requires Node.js 22+; offline `score` also needs Python 3. [CLI options and privacy](docs/cli.md).
+
+### REST API
+
+The REST API accepts the same edit request:
+
+```sh
+curl --fail-with-body --max-time 75 https://mcp.zero-slop.ai/v1/deslop \
+  -H 'Content-Type: application/json' \
+  --data '{"text":"Maya owns the pricing review.","genre":"professional"}'
+```
+
+Check `status` before using an edit. Shared free capacity accepts up to 20,000 Unicode code points after trimming. [API reference](docs/rest-api.md) · [OpenAPI contract](https://mcp.zero-slop.ai/openapi.json)
 
 ## Find the source
 
