@@ -9,7 +9,16 @@ Find and remove AI slop in your writing. Get rid of workslop without losing your
 
 Zero Slop is a free, open-source agent skill that finds and removes AI slop while checking that the core details of your message survive the edit. If your AI setup does not support agent skills, [try the browser editor](https://zero-slop.ai/try/) or use our [MCP connector](https://mcp.zero-slop.ai/mcp).
 
-<img alt="Version 2.12.6" src="https://img.shields.io/badge/version-2.12.6-72528F?color=C15732">
+<p align="center">
+  <a href="https://github.com/manavmishra/ZeroSlop/actions/workflows/validate.yml"><img alt="Validate" src="https://github.com/manavmishra/ZeroSlop/actions/workflows/validate.yml/badge.svg"></a>
+  <img alt="Version 2.12.6" src="https://img.shields.io/badge/version-2.12.6-72528F?color=C15732">
+  <a href="https://www.npmjs.com/package/zero-slop"><img alt="npm version" src="https://img.shields.io/npm/v/zero-slop?color=C15732"></a>
+  <a href="https://www.npmjs.com/package/zero-slop"><img alt="npm downloads" src="https://img.shields.io/npm/dm/zero-slop?color=17634F"></a>
+  <a href="https://github.com/manavmishra/ZeroSlop/stargazers"><img alt="GitHub stars" src="https://img.shields.io/github/stars/manavmishra/ZeroSlop?style=flat&color=C15732"></a>
+  <a href="LICENSE"><img alt="MIT license" src="https://img.shields.io/badge/license-MIT-141412"></a>
+  <a href="https://hol.org/registry/plugins/manav-mishra%2Fzero-slop"><img alt="Listed in the HOL plugin registry" src="https://img.shields.io/badge/HOL%20registry-listed-2C6E8F"></a>
+  <a href="https://hol.org/guard/plugins?badge=manav-mishra%2Fzero-slop"><img alt="Verify Zero Slop on HOL Guard" src="https://img.shields.io/badge/HOL%20Guard-verify%20listing-2C6E8F"></a>
+</p>
 
 ## Why it exists
 
