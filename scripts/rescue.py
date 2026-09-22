@@ -116,6 +116,8 @@ def rescue_text(text: str) -> str:
         (r"\bgame[-\u2011]changing\b", "useful"),
         (r"\bcutting[-\u2010\u2011 ]edge\b", "current"),
         (r"\bredefines what(?:['’]s| is) possible in\b", "updates"),
+        (r"\bhere are (?=\d+\s+(?:tips?|ways?|reasons?|steps?|ideas?)\b)", ""),
+        (r"\bgenuinely\s+", ""),
         (r"\bin order to\b", "to"),
         (r"\bat the end of the day\b", "ultimately"),
         # Contractions alone are not evidence of better writing. Leave clean

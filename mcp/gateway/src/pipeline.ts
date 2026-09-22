@@ -184,6 +184,8 @@ export function localRescue(text: string): string {
     [/\bgame[-\u2011]changing\b/gi, "useful"],
     [/\bcutting[-\u2010\u2011 ]edge\b/gi, "current"],
     [/\bredefines what(?:['’]s| is) possible in\b/gi, "updates"],
+    [/\bhere are (?=\d+\s+(?:tips?|ways?|reasons?|steps?|ideas?)\b)/gi, ""],
+    [/\bgenuinely\s+/gi, ""],
     [/\bin order to\b/gi, "to"],
     [/\bat the end of the day\b/gi, "ultimately"],
     // Contractions alone do not improve clean prose. Keep those sentences.

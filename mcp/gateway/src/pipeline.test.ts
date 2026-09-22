@@ -236,7 +236,7 @@ test("the MCP result reports both provider attempts behind one editor request", 
   }) as typeof fetch;
   try {
     const result = await runPipeline({
-      SCORER: scorerHarness(original, rewrite), SCORER_VERSION: "2.12.9",
+      SCORER: scorerHarness(original, rewrite), SCORER_VERSION: "2.12.10",
       EDITOR_ENDPOINT: "https://zero-slop.ai/api/demo-rewrite", EDITOR_SHARED_SECRET: signingKeyForTests(),
     } as unknown as Env, { text: original, genre: "general" });
     assert.equal(requests, 1);
@@ -251,7 +251,7 @@ test("an unavailable two-provider edit retains its measured attempt count", asyn
   globalThis.fetch = (async () => Response.json({ error: "editor_unavailable", providerCalls: 2 }, { status: 503 })) as typeof fetch;
   try {
     const result = await runPipeline({
-      SCORER: scorerHarness(original, localRescue(original)), SCORER_VERSION: "2.12.9",
+      SCORER: scorerHarness(original, localRescue(original)), SCORER_VERSION: "2.12.10",
       EDITOR_ENDPOINT: "https://zero-slop.ai/api/demo-rewrite", EDITOR_SHARED_SECRET: signingKeyForTests(),
     } as unknown as Env, { text: original, genre: "general" });
     assert.equal(result.modelRequests, 2);
@@ -514,6 +514,13 @@ test("local fallback preserves the launch fixture's protected details", () => {
     localRescue("Our cutting‑edge editor handles 50 000 words."),
     "Our editor handles 50 000 words.",
   );
+});
+
+test("local fallback removes measured listicle framing and filler without dropping figures", () => {
+  const source = "Here are 6 tips from UNBOUND. I genuinely wish I had used Apple Notes.";
+  const edited = "6 tips from UNBOUND. I wish I had used Apple Notes.";
+  assert.equal(localRescue(source), edited);
+  assert.equal(localRescue(edited), edited);
 });
 
 test("local fallback never rewrites quotations, code, or links", () => {

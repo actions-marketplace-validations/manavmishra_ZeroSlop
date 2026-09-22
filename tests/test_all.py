@@ -3923,6 +3923,18 @@ class Fidelity(unittest.TestCase):
         self.assertTrue(r["preserved"])
         self.assertFalse(r["invented"])
 
+    def test_conference_advice_openers_are_not_names_but_named_tools_are(self):
+        before = ("Stare em down. Rookie move. Missed easy opportunity. "
+                  "I saved the notes in Apple Notes.")
+        after = "I saved the notes in Apple Notes."
+        result = slopscore.fidelity(before, after)
+        self.assertTrue(result["preserved"], result)
+        self.assertFalse(result["invented"], result)
+        self.assertFalse(
+            slopscore.fidelity(before, "I saved the notes on my phone.")["preserved"],
+            "a real named tool must remain protected",
+        )
+
     def test_partial_entity_rename_is_caught(self):
         result = slopscore.fidelity("Basis Ventures led the round.",
                                    "Basis Labs led the round.")
