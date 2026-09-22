@@ -18,6 +18,7 @@ PAIR_EVIDENCE = {
     ("2.11.6", "2.12.3"): Path(__file__).with_name("runtime-compatibility-2.12.3.json"),
     ("2.11.6", "2.12.4"): Path(__file__).with_name("runtime-compatibility-2.12.4.json"),
     ("2.11.6", "2.12.5"): Path(__file__).with_name("runtime-compatibility-2.12.5.json"),
+    ("2.11.6", "2.12.6"): Path(__file__).with_name("runtime-compatibility-2.12.6.json"),
 }
 PINNED_FILES = frozenset({
     "scripts/slopscore.py", "scripts/register.py", "scripts/rerank.py",

@@ -7,13 +7,13 @@
 
 Find and remove AI slop in your writing. Get rid of workslop without losing your core intent and message.
 
-Zero Slop is a free, open-source set of instructions and checks for an AI assistant. The assistant edits your draft. The local tools flag stock language and compare names, numbers, links, quotations, code, tables, and paths with the original. If your ChatGPT setup does not support skills, [try the browser editor](https://zero-slop.ai/try/) without installing anything.
+Zero Slop is a free, open-source agent skill that finds and removes AI slop while checking that the core details of your message survive the edit. If your ChatGPT setup does not support skills, [try the browser editor](https://zero-slop.ai/try/) without installing anything.
 
-<img alt="Version 2.12.5" src="https://img.shields.io/badge/version-2.12.5-72528F?color=C15732">
+<img alt="Version 2.12.6" src="https://img.shields.io/badge/version-2.12.6-72528F?color=C15732">
 
 ## Why it exists
 
-An AI draft can be grammatical and still sound like everybody else's. Asking for a rewrite can also change a number or smooth away your point. Zero Slop tells your assistant what to cut, then checks the result against your original. The writing score finds patterns worth reviewing; it cannot tell who wrote the text.
+An AI draft can be grammatically sound and still read like workslop. In a compatible AI assistant, Zero Slop flags stock phrasing and stiff patterns, then guides the edit. The writing score finds patterns worth reviewing; it cannot tell who wrote the text.
 
 <a href="assets/zero-slop-demo.mp4?v=dark-shell-restored-20260906">
   <picture>
@@ -204,7 +204,7 @@ python3 scripts/slopscore.py --batch drafts/ --gate 25
 The CLI sends a file to the hosted editor without changing the file on disk:
 
 ```sh
-npx --yes zero-slop@2.12.5 deslop draft.md --genre professional
+npx --yes zero-slop@2.12.6 deslop draft.md --genre professional
 ```
 
 Use `-` for stdin and `--json` for structured output. `--require-approved` prints the result but exits nonzero when review is needed. Requires Node.js 22+; offline `score` also needs Python 3. [CLI options and privacy](docs/cli.md).
