@@ -7,6 +7,7 @@ import { deslopInputSchema, deslopOutputSchema as outputSchema, MAX_DRAFT_CHARS 
 import { handleRest } from "./rest";
 import { HostedBudgetError } from "./budget";
 import { boundedOperation, PipelineCancelledError } from "./cancellation";
+import { receiptIdFromUrl, requestLedgerShard } from "./request-ledger";
 import type { PipelineResult } from "./types";
 import {
   McpCounter,
@@ -213,6 +214,21 @@ export default {
         openapi: "/openapi.json",
         privacy: "Drafts are processed in memory and are not cached or stored by this service.",
       }));
+    }
+
+    if (url.pathname === "/metrics/request") {
+      if (request.method !== "GET") return withSecurityHeaders(Response.json({ error: "method_not_allowed" }, { status: 405, headers: { allow: "GET" } }));
+      if (!(await reportTokenMatches(request, env.REPORT_SHARED_SECRET))) {
+        return withSecurityHeaders(Response.json({ error: "unauthorized" }, { status: 401, headers: { "www-authenticate": 'Bearer realm="zero-slop-reports"' } }));
+      }
+      const id = receiptIdFromUrl(url);
+      if (!id) return withSecurityHeaders(Response.json({ error: "invalid_request_id" }, { status: 400 }));
+      try {
+        const stub = env.MCP_COUNTER.getByName(requestLedgerShard(id));
+        return withSecurityHeaders(await boundedOperation(() => stub.fetch(`https://counter.internal/request-ledger/receipt?id=${id}`), 3000, { signal: request.signal, editorRequested: false }));
+      } catch {
+        return withSecurityHeaders(Response.json({ error: "request_ledger_unavailable" }, { status: 503 }));
+      }
     }
 
     if (url.pathname === "/internal/counters") {

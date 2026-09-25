@@ -1,7 +1,10 @@
 # Zero Slop eval
 
-Answer every check with pass or fail. Where a check asks for a count, write the
-number down; a count is evidence, and a missing count means the pass did not run.
+Answer every check with pass or fail. Use "unavailable" only for a check that
+requires a missing script in the single-file or no-Python path; name that gap in
+the report and never call the result fully verified. Where a check asks for a
+count, write the number down; a count is evidence, and a missing count means the
+pass did not run.
 
 Any fail permits one targeted textual repair followed by one local recheck. It does
 not restart the copy desk, read-aloud pass, or model request. A failed check changes
@@ -98,6 +101,9 @@ the report even when they are zero.
     claim is a judgment and not a match. A zero on the anchored count is not an
     answer to this check and never closes it: the stems match the shapes they were
     built from, and this family's whole character is that it arrives in new ones.
+    Personal attention frames belong here too: “The number I keep coming back to is
+    119,000” becomes the sentence that explains what 119,000 measures. Keep “I keep
+    coming back to X because Y” when Y adds a real reason rather than staging emphasis.
 17. **Weasel attribution.** "Studies show." "Experts agree." Name the source, or flag
     it for the writer. Never invent one. An unnamed validator is the same defect —
     "an external checker", "a third-party audit", "an independent review" — name the
@@ -158,7 +164,9 @@ the report even when they are zero.
 31. **Removal test.** Does every paragraph lose something real when deleted? Check
     individual sentences too. Replacing “Efficiency is paramount” with “Efficiency
     is crucial” fails when the whole sentence is empty. Cut sentences that merely
-    restate a nearby benefit; preserve substantive opinions and useful transitions.
+    restate a nearby benefit or cause: after a sentence says lower token prices offset
+    higher token use, “The price cut paid for the extra thinking” adds only metaphor.
+    Preserve substantive opinions and useful transitions.
 32. **Relevance test.** Does every paragraph serve the brief, audience, and argument?
 33. **Front-loading, applied selectively.** Conclusions arrive early where that helps
     the reader, without forcing every section into the same point-then-detail shape.
@@ -215,6 +223,9 @@ the report even when they are zero.
 ## C. Fidelity
 
 48. **Scripted check run, not eyeballed.** `slopscore.py --fidelity` exits zero.
+    If scripts are unavailable, mark this unavailable and compare facts, claims,
+    figures, and qualifiers directly against the source. The direct comparison
+    does not turn an unavailable scripted check into a pass.
 49. **No invented specifics.** No number, name, anecdote, date, or source appeared
     that the author did not supply.
 50. **No invented interior claims.** No stated feeling, motive, or experience the
@@ -309,13 +320,18 @@ local verifier records the execution facts and the report names the consolidatio
 
 73. **Execution described accurately.** Separate passes are named as separate; a
     one-response consolidation is named as one response, never as independent review.
-74. **No self-certification of facts.** The local source gate checks the generated
-    text even when the model performs an editorial self-check inside one response.
+74. **No self-certification of facts.** The installed local source gate checks the
+    generated text even when the model performs an editorial self-check inside one
+    response. In scriptless mode, compare directly with the source and state that
+    the independent scripted gate was unavailable.
 75. **Counts reported.** Every count in section A appears in the summary, including
     the zeros.
-76. **The exact final text cleared every check.** Not an earlier draft, not a version
-    that was repaired afterward.
-77. **Finalizer edits were rechecked locally.** If role 8 changed anything, the score,
-    fact, format, and structure checks ran once on that exact revision.
+76. **The exact final text cleared every available check.** Not an earlier draft,
+    not a version that was repaired afterward. Name any unavailable scripted check;
+    it prevents a claim of full verification.
+77. **Finalizer edits were rechecked.** If role 8 changed anything, the available
+    score and fact checks plus format and structure checks ran once on that exact
+    revision. In scriptless mode, repeat the direct source comparison and name the
+    unavailable scripted checks.
 78. **Fallbacks named honestly.** The report names an unavailable role, local fallback,
     missed target, or one-request constraint and does not call it fully verified.

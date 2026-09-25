@@ -56,6 +56,10 @@ def rescue_text(text: str) -> str:
         r"[ \t]+([A-Za-z][A-Za-z0-9_-]*)",
         _without_wrapper, out, flags=re.IGNORECASE,
     )
+    out = re.sub(
+        r"(^|[.!?][ \t\r\n]+|\r?\n[ \t]*\r?\n[ \t]*)as we move forward,[ \t]+the team will\b",
+        lambda m: m.group(1) + "The team will", out, flags=re.IGNORECASE,
+    )
     rules: list[tuple[str, str | object]] = [
         (
             r"\bwe are thrilled to unveil ([^,\n]+),\s+a transformative release that "
@@ -70,6 +74,9 @@ def rescue_text(text: str) -> str:
         (r"\bour cutting[-\u2010\u2011 ]edge\b", "Our"),
         (r"\bhours of tedious manual configuration\b", "hours of manual configuration"),
         (r"\bwe have completely reimagined\b", "We rebuilt"),
+        (r"\bthis represents a significant milestone in our journey\.\s*", ""),
+        (r"\bwill leverage the proposal to make a decision\b", "will use the proposal to decide"),
+        (r"\ba groundbreaking update\b", "an update"),
         (r"\bwith robust error handling built in from the ground up\b",
          "with built-in error handling"),
         (r"\bwe believe these improvements will fundamentally transform how your team "
@@ -109,6 +116,8 @@ def rescue_text(text: str) -> str:
         (r"\bgame[-\u2011]changing\b", "useful"),
         (r"\bcutting[-\u2010\u2011 ]edge\b", "current"),
         (r"\bredefines what(?:['’]s| is) possible in\b", "updates"),
+        (r"\bhere are (?=\d+\s+(?:tips?|ways?|reasons?|steps?|ideas?)\b)", ""),
+        (r"\bgenuinely\s+", ""),
         (r"\bin order to\b", "to"),
         (r"\bat the end of the day\b", "ultimately"),
         # Contractions alone are not evidence of better writing. Leave clean

@@ -1,10 +1,11 @@
 import { callRole } from "./model";
 import { checkCancelled } from "./cancellation";
+import { MAX_DRAFT_CHARS } from "./contract";
 import { rankRewrites, scoreWriting } from "./scorer";
 import type { Genre, PipelineResult, RankedRewrite, WritingReport } from "./types";
 
 const SCORE_GATE = 25;
-const PIPELINE_BUDGET_MS = 36_000;
+const PIPELINE_BUDGET_MS = 75_000;
 
 export type DeslopInput = {
   text: string;
@@ -27,6 +28,71 @@ export function scorerGuidance(report: WritingReport): string {
 
 function sourceSafe(checked: RankedRewrite): boolean {
   return checked.preserved && !checked.invented && Boolean(checked.text.trim());
+}
+
+// The scorer protects concrete details, but cannot adjudicate changes in a
+// claim's negation, direction, certainty, or timing. Keep sentences with such
+// markers unchanged (apart from case and whitespace) for auto-approval. A
+// harmless paraphrase may therefore require review; a stronger unsupported
+// assertion must never be silently approved.
+const SENSITIVE_CLAIM_WORD = /\b(?:not|no|never|neither|nor|without|cannot|can't|won't|isn't|aren't|wasn't|weren't|doesn't|don't|didn't|hasn't|haven't|hadn't|shouldn't|couldn't|wouldn't|unable|unavailable|increase(?:d|s|ing)?|decrease(?:d|s|ing)?|rises?|rose|rising|falls?|fell|falling|drops?|dropped|dropping|reduc(?:e|ed|es|ing)|more|less|fewer|above|below|before|after|earlier|later|approved|rejected|may|might|could|can|should|likely|unlikely|possible|possibly|probable|probably|uncertain|estimated?|estimates|preliminary|suggests?|suggested|appears?|appeared|seems?|seemed|reportedly|allegedly|potentially|tentative|expected|forecast(?:ed)?|projected|was|were|had|did|will|would|previously|formerly|currently|now|yesterday|today|tomorrow|(?:last|next|this)\s+(?:week|month|year|quarter))\b/i;
+
+function sensitiveSentences(text: string): string[] {
+  return (text.replace(/’/g, "'").match(/[^.!?\n]+(?:[.!?]+|$)/g) ?? [])
+    .map((sentence) => sentence.trim().toLowerCase().replace(/\s+/g, " "))
+    .filter((sentence) => SENSITIVE_CLAIM_WORD.test(sentence))
+    .sort();
+}
+
+function regularVerbForms(text: string): Map<string, [number, number, number]> {
+  const forms = new Map<string, [number, number, number]>();
+  for (const word of text.toLowerCase().match(/\b[a-z]{4,}\b/g) ?? []) {
+    let stem = word;
+    let form = 1; // present or base form
+    if (word.endsWith("ied")) { stem = word.slice(0, -3) + "y"; form = 0; }
+    else if (word.endsWith("ed")) { stem = word.slice(0, -2); form = 0; }
+    else if (word.endsWith("ing")) { stem = word.slice(0, -3); form = 2; }
+    else if (word.endsWith("ies")) stem = word.slice(0, -3) + "y";
+    else if (word.endsWith("es")) stem = word.slice(0, -2);
+    else if (word.endsWith("s")) stem = word.slice(0, -1);
+    // "stopped" / "stopping" share the stem of "stops".
+    if (form !== 1) stem = stem.replace(/([^aeiou])\1$/, "$1");
+    if (stem.length < 3) continue;
+    const counts = forms.get(stem) ?? [0, 0, 0];
+    counts[form] = (counts[form] ?? 0) + 1;
+    forms.set(stem, counts);
+  }
+  return forms;
+}
+
+function regularVerbFormRisk(source: string, rewrite: string): boolean {
+  const before = regularVerbForms(source);
+  const after = regularVerbForms(rewrite);
+  for (const [stem, first] of before) {
+    const second = after.get(stem);
+    if (!second) continue;
+    const forms = first.map((count, index) => count + (second[index] ?? 0));
+    if (forms.filter((count) => count > 0).length < 2) continue;
+    if (first.some((count, index) => count !== second[index])) return true;
+  }
+  return false;
+}
+
+export function sourceClaimRisk(source: string, rewrite: string): boolean {
+  // A vetted deterministic deletion of stock framing is not a change in the
+  // claim it introduces. Normalize both sides with the exact same conservative
+  // editor before comparing; modality, figures, timing and agency remain.
+  const normalizedSource = localRescue(source);
+  const normalizedRewrite = localRescue(rewrite);
+  const before = sensitiveSentences(normalizedSource);
+  const after = sensitiveSentences(normalizedRewrite);
+  return before.length !== after.length || before.some((sentence, index) => sentence !== after[index])
+    || regularVerbFormRisk(normalizedSource, normalizedRewrite);
+}
+
+export function withinScorerLimit(text: string): boolean {
+  // Python's scorer counts Unicode code points, not UTF-16 code units.
+  return [...text].length <= MAX_DRAFT_CHARS;
 }
 
 export function meetsReleaseGate(report: WritingReport): boolean {
@@ -66,6 +132,10 @@ export function localRescue(text: string): string {
     (_match, prefix: string, word: string) => prefix + (word === word.toLowerCase()
       ? word.charAt(0).toUpperCase() + word.slice(1) : word),
   );
+  out = out.replace(
+    /(^|[.!?][ \t\r\n]+|\r?\n[ \t]*\r?\n[ \t]*)as we move forward,[ \t]+the team will\b/gi,
+    (_match, prefix: string) => prefix + "The team will",
+  );
   const changes: Array<[RegExp, string | ((...args: string[]) => string)]> = [
     [/\bwe are thrilled to unveil ([^,\n]+),\s+a transformative release that redefines what is possible in ([^.]+)\./gi,
       (_match: string, name: string, topic: string) => name + " updates " + topic + "."],
@@ -75,6 +145,9 @@ export function localRescue(text: string): string {
     [/\bour cutting[-\u2010\u2011 ]edge\b/gi, "Our"],
     [/\bhours of tedious manual configuration\b/gi, "hours of manual configuration"],
     [/\bwe have completely reimagined\b/gi, "We rebuilt"],
+    [/\bthis represents a significant milestone in our journey\.\s*/gi, ""],
+    [/\bwill leverage the proposal to make a decision\b/gi, "will use the proposal to decide"],
+    [/\ba groundbreaking update\b/gi, "an update"],
     [/\bwith robust error handling built in from the ground up\b/gi, "with built-in error handling"],
     [/\bwe believe these improvements will fundamentally transform how your team works,\s+and the release is available today\./gi,
       "The release is available today."],
@@ -111,6 +184,8 @@ export function localRescue(text: string): string {
     [/\bgame[-\u2011]changing\b/gi, "useful"],
     [/\bcutting[-\u2010\u2011 ]edge\b/gi, "current"],
     [/\bredefines what(?:['’]s| is) possible in\b/gi, "updates"],
+    [/\bhere are (?=\d+\s+(?:tips?|ways?|reasons?|steps?|ideas?)\b)/gi, ""],
+    [/\bgenuinely\s+/gi, ""],
     [/\bin order to\b/gi, "to"],
     [/\bat the end of the day\b/gi, "ultimately"],
     // Contractions alone do not improve clean prose. Keep those sentences.
@@ -195,15 +270,21 @@ export async function runPipeline(env: Env, input: DeslopInput, clientAddress = 
     audience: input.audience ?? "",
     localChecks: JSON.parse(scorerGuidance(before)),
   };
-  // Exactly one outbound editor request. The endpoint itself is also limited
-  // to one provider invocation, so this cannot fan out into a retry ladder.
-  const modelReply = await callRole(env, "complete", original, diagnostics, deadline, clientAddress, control);
+  // Exactly one outbound editor request. The endpoint may use one bounded
+  // alternate provider if its primary cannot return a usable edit.
+  let observedProviderCalls: 0 | 1 | 2 | null = null;
+  const modelReply = await callRole(env, "complete", original, diagnostics, deadline, clientAddress, control,
+    (count) => { observedProviderCalls = count; });
   checkCancelled(control);
   const rescue = localRescue(original);
   const candidates: Record<string, string> = {};
   const cleanedModelReply = modelReply?.text ? localRescue(modelReply.text) : "";
-  if (cleanedModelReply && cleanedModelReply !== original) candidates["one-call edit"] = cleanedModelReply;
-  if (rescue && rescue !== original && rescue !== modelReply?.text) candidates["local edit"] = rescue;
+  if (cleanedModelReply && cleanedModelReply !== original && withinScorerLimit(cleanedModelReply)) {
+    candidates["one-call edit"] = cleanedModelReply;
+  }
+  if (rescue && rescue !== original && rescue !== cleanedModelReply && withinScorerLimit(rescue)) {
+    candidates["local edit"] = rescue;
+  }
 
   if (Object.keys(candidates).length === 0) {
     return {
@@ -211,16 +292,18 @@ export async function runPipeline(env: Env, input: DeslopInput, clientAddress = 
         original, "unchanged_service_unavailable", before, started, env.SCORER_VERSION,
         "The single model request did not return a usable edit, and the conservative local editor found no safe textual change.",
       ),
-      modelRequests: 1,
+      modelRequests: modelReply?.providerCalls ?? observedProviderCalls ?? 1,
     };
   }
 
+  const modelClaimUncertain = Boolean(candidates["one-call edit"]
+    && sourceClaimRisk(original, candidates["one-call edit"]));
   let checked = await rankRewrites(env, original, candidates, input.genre, control);
   checkCancelled(control);
-  if (!sourceSafe(checked) && rescue && rescue !== original) {
+  if ((!sourceSafe(checked) || sourceClaimRisk(original, checked.text)) && candidates["local edit"]) {
     const localOnly = await rankRewrites(env, original, { "local edit": rescue }, input.genre, control);
     checkCancelled(control);
-    if (sourceSafe(localOnly)) checked = localOnly;
+    if (sourceSafe(localOnly) && !sourceClaimRisk(original, localOnly.text)) checked = localOnly;
   }
   if (!sourceSafe(checked)) {
     return {
@@ -228,7 +311,7 @@ export async function runPipeline(env: Env, input: DeslopInput, clientAddress = 
         original, "unchanged_verification_failed", before, started, env.SCORER_VERSION,
         "Every proposed edit changed protected source material, so the original is preserved.",
       ),
-      modelRequests: 1,
+      modelRequests: modelReply?.providerCalls ?? observedProviderCalls ?? 1,
       rolesCompleted: modelReply ? 6 : 2,
     };
   }
@@ -237,14 +320,17 @@ export async function runPipeline(env: Env, input: DeslopInput, clientAddress = 
   const after = await scoreWriting(env, current, input.genre, control);
   checkCancelled(control);
   const selectedModelEdit = checked.name === "one-call edit";
-  const passed = selectedModelEdit && meetsReleaseGate(after);
+  const claimUncertain = sourceClaimRisk(original, current);
+  const passed = selectedModelEdit && !claimUncertain && meetsReleaseGate(after);
   const warnings: string[] = [];
   if (!selectedModelEdit) {
     const safeModelEdit = checked.ranked.some((candidate) =>
       candidate.name === "one-call edit" && candidate.preserved && !candidate.invented);
-    warnings.push(safeModelEdit
-      ? "the local edit ranked ahead of a source-preserving model edit on the measured writing checks"
-      : "the model response was unavailable or did not pass the source check, so the local edit was used");
+    warnings.push(modelClaimUncertain
+      ? "the model response changed a source claim's negation, direction, certainty, or timing, so the local edit was used"
+      : safeModelEdit
+        ? "the local edit ranked ahead of a source-preserving model edit on the measured writing checks"
+        : "the model response was unavailable or did not pass the source check, so the local edit was used");
   }
   if (after.score >= SCORE_GATE) warnings.push("the writing score remains above 25");
   if (after.highWeightFlags > 0) warnings.push("a strong stock-writing signal remains");
@@ -255,6 +341,7 @@ export async function runPipeline(env: Env, input: DeslopInput, clientAddress = 
   if (after.register.findings.length > 0 || (after.shape.measured && after.shape.broetry)) {
     warnings.push("a document-level writing check remains");
   }
+  if (claimUncertain) warnings.push("a source claim's negation, direction, certainty, or timing changed and needs human review");
 
   return {
     text: current,
@@ -262,10 +349,10 @@ export async function runPipeline(env: Env, input: DeslopInput, clientAddress = 
     before,
     after,
     scoreChange: Math.round((after.score - before.score) * 10) / 10,
-    factsPreserved: true,
+    factsPreserved: !claimUncertain,
     passedFinalChecks: passed,
     independentModelChecks: 0,
-    modelRequests: 1,
+    modelRequests: modelReply?.providerCalls ?? observedProviderCalls ?? 1,
     rolesCompleted: selectedModelEdit ? 8 : 4,
     finishingRounds: 1,
     scorerVersion: env.SCORER_VERSION,

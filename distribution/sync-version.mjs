@@ -27,6 +27,8 @@ const rules = [
   ["README.md", /(alt="Version )[0-9.]+(")/, `$1${version}$2`],
   ["README.md", /(badge\/version-)[0-9.]+(-72528F)/, `$1${version}$2`],
   ["README.md", /(npx --yes zero-slop@)[0-9.]+( deslop)/, `$1${version}$2`],
+  ["pyproject.toml", /(^version = ")[0-9.]+(")/m, `$1${version}$2`],
+  ["packaging/zero_slop/__init__.py", /(__version__ = ")[0-9.]+(")/, `$1${version}$2`],
   ["docs/cli.md", /(npm install --global zero-slop@)[0-9.]+/, `$1${version}`],
   ["ONE-PAGER.md", /( · v)[0-9.]+( ·)/, `$1${version}$2`],
   ["mcp/README.md", /(exact Zero Slop )[0-9.]+/, `$1${version}`],

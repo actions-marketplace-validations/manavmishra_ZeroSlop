@@ -27,7 +27,7 @@ export const deslopOutputSchema = z.object({
   factsPreserved: z.boolean(),
   passedFinalChecks: z.boolean(),
   independentModelChecks: z.number().int().nonnegative(),
-  modelRequests: z.number().int().min(0).max(1),
+  modelRequests: z.number().int().min(0).max(2),
   rolesCompleted: z.number().int().nonnegative(),
   finishingRounds: z.number().int().nonnegative(),
   scorerVersion: z.string(),

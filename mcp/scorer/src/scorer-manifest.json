@@ -1,9 +1,9 @@
 {
-  "data/learned.json": "8427cf1f2b3aa45494db94c0ce30969dbc7368174138c5b771c15951ca12f483",
+  "data/learned.json": "326a19ab0f19a9073981de7f78253011c12b8b78f81a8276a335b13a7bd686ea",
   "data/patterns.json": "a20499d0c135a4d1df60e104f1b3ff7b382ea67f065eda946ac0fb63b08aeed6",
   "scripts/register.py": "3e1ba55c281a32081910bf0aac506912b521ca8edf06836e47c2e654b732a844",
   "scripts/rerank.py": "2d4b80556e1ba389dde38fe6e7991610cc3c21a85baa8bf2d70dfdcaff69b7a7",
   "scripts/safeio.py": "a2e7f2ae689d39bec3482e52a4f3228abfaa2d8b70174baa487c086362c5753b",
-  "scripts/slopscore.py": "e2f139f932e3dfec5dbd266f252bfd46abfb09eb4c04f5f619cdc00a2cdc5367",
-  "version": "2.11.5"
+  "scripts/slopscore.py": "d4f55a6a7fb8a102ed143f08ee42b5196973d712659260c0c0cd4cba55b139b5",
+  "version": "2.12.11"
 }

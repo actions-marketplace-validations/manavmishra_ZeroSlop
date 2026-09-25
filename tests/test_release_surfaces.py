@@ -24,6 +24,7 @@ SPEC.loader.exec_module(CHECKER)
 RELEASE = "https://api.github.com/repos/manavmishra/ZeroSlop/releases/latest"
 ZIP = "https://github.com/manavmishra/ZeroSlop/releases/latest/download/zero-slop.zip"
 NPM = "https://registry.npmjs.org/zero-slop/latest"
+PYPI = "https://pypi.org/pypi/zero-slop/"
 REGISTRY = "https://registry.modelcontextprotocol.io/v0.1/servers/io.github.manavmishra%2Fzero-slop/versions/latest"
 DOWNLOAD = "https://zero-slop.ai/downloads/current-skill.zip?source=site&format=zip"
 MANIFEST = "https://zero-slop.ai/try-runtime/manifest.json"
@@ -62,6 +63,7 @@ def fixture_responses(module=CHECKER):
             "integrity": "sha512-" + base64.b64encode(hashlib.sha512(tarball).digest()).decode(),
         }}),
         tar_url: tarball,
+        f"{PYPI}{version}/json": json.dumps({"info": {"name": "zero-slop", "version": version}, "urls": [{"filename": f"zero_slop-{version}-py3-none-any.whl", "size": 100}, {"filename": f"zero_slop-{version}.tar.gz", "size": 100}]}),
         module.HOMEBREW: f'  url "{tar_url}"\n  sha256 "{hashlib.sha256(tarball).hexdigest()}"\n',
         REGISTRY: json.dumps({"server": {
             "name": "io.github.manavmishra/zero-slop", "version": version,
@@ -111,8 +113,30 @@ class PayloadParity(unittest.TestCase):
         tar_url = json.loads(self.responses[NPM])["dist"]["tarball"]
         self.assertEqual(self.requests.count((tar_url, True)), 1)
         self.assertIn((DOWNLOAD, True), self.requests)
+        version = json.loads((ROOT / "package.json").read_text())["version"]
+        self.assertIn((f"{PYPI}{version}/json", False), self.requests)
         for path in CHECKER.BROWSER_FILES.values():
             self.assertIn((f"{CHECKER.WEBSITE}try-runtime/zero-slop/{path}", True), self.requests)
+
+    def test_missing_pypi_release_is_publication_drift(self):
+        version = json.loads((ROOT / "package.json").read_text())["version"]
+        url = f"{PYPI}{version}/json"
+        self.responses[url] = urllib.error.HTTPError(url, 404, "Not Found", {}, None)
+        problems, skipped = self.check()
+        self.assertEqual(skipped, [])
+        self.assertEqual(len(problems), 1, problems)
+        self.assertIn("PyPI", problems[0])
+
+    def test_incomplete_pypi_release_is_publication_drift(self):
+        version = json.loads((ROOT / "package.json").read_text())["version"]
+        url = f"{PYPI}{version}/json"
+        record = json.loads(self.responses[url])
+        record["urls"] = record["urls"][:1]
+        self.responses[url] = json.dumps(record)
+        problems, skipped = self.check()
+        self.assertEqual(skipped, [])
+        self.assertEqual(len(problems), 1, problems)
+        self.assertIn("PyPI", problems[0])
 
     def test_same_version_tampered_release_and_discovered_website_zip_fail(self):
         for url in (ZIP, DOWNLOAD):

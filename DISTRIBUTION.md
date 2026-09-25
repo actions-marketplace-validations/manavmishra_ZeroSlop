@@ -48,8 +48,9 @@ version there, then run `node distribution/sync-version.mjs` to update the
 release labels. This maintainer command leaves historical benchmark results alone;
 rerun version-bound evaluations before publication.
 
-All three validation jobs must pass at the exact commit before an immutable tag
-can publish npm, the GitHub downloads or the official MCP Registry record. The
+The code, Action, website and MCP validation jobs must pass at the exact commit
+before an immutable tag can publish npm, PyPI, the GitHub downloads or the
+official MCP Registry record. The
 private scorer and the shared REST/MCP gateway deploy from that tag. OpenAPI's
 product version comes from the gateway configuration; the `/v1/` route identifies
 the API contract, not the current package version.
@@ -62,8 +63,10 @@ skill, so an older page cannot silently offer a newer runtime.
 Three hourly reconciliation jobs check the canonical release, website and
 Homebrew tap. The tap derives its formula from the release's integrity-checked
 npm tarball, then audits, installs and tests it before committing. The canonical
-audit checks npm package bytes, skill ZIP contents, browser files, OpenAPI,
-hosted versions, the MCP Registry record and the tap checksum. Failed checks
+audit checks npm package bytes, the exact-version PyPI wheel and source
+distribution, skill ZIP contents, browser files, OpenAPI, hosted versions,
+the MCP Registry record and the tap checksum. Missing PyPI distributions are
+re-dispatched from the validated tag; incomplete records stop for review. Failed checks
 remain visible in Actions; unknown network failures never count as a pass.
 
 These services publish independently. Brief propagation gaps and delayed

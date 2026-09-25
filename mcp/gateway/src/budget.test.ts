@@ -12,6 +12,10 @@ test("hosted limit messages explain waiting without inventing a traffic cause", 
   assert.match(limited.message, /temporarily busy or at its free usage limit/);
   assert.match(limited.message, /Please wait at least 60 seconds before trying again/);
   assert.match(new HostedBudgetError("usage_limit", 1).message, /at least 1 second before/);
+  const daily = new HostedBudgetError("usage_limit", 29_710);
+  assert.equal(daily.retryAfterSeconds, 29_710);
+  assert.match(daily.message, /about 9 hours/);
+  assert.doesNotMatch(daily.message, /29710 seconds/);
   assert.match(new HostedBudgetError("usage_limit").message, /Please try again later/);
   const unavailable = new HostedBudgetError("budget_unavailable");
   assert.match(unavailable.message, /Hosted capacity could not be checked/);

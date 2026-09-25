@@ -6,11 +6,13 @@ HOW TO USE
   ChatGPT / ChatGPT at Work : Project → Instructions → paste this file.
                               Or Custom GPT → Knowledge → upload this file.
   Codex                     : save as AGENTS.md in your project.
-  Anything else             : paste it. It is self-contained.
+  Anything else             : paste it for the editorial workflow.
 
-The local writing check needs a shell and is not included here. With Code
-Interpreter enabled you can also upload scripts/slopscore.py from the repo to
-get the numbers; without it, use the reference lists and editorial checks below.
+This file has no executable scripts or data. Follow SKILL.md's scriptless path:
+use the included reference checklists and compare the final text to its source.
+Do not run the script commands below, report numeric scores, or claim full
+scripted verification from this file alone. To run local scoring and fidelity
+checks, install the complete skill package with its scripts and data.
 
 GENERATED FILE — do not edit. Run scripts/build_bundle.py after changing
 SKILL.md or anything in references/.
@@ -28,9 +30,9 @@ Source: https://github.com/manavmishra/ZeroSlop   MIT
 name: zero-slop
 license: MIT
 metadata:
-  version: "2.11.5"
+  version: "2.12.11"
   author: manavmishra
-description: Turn drafts into sharp, natural prose or inspect them without rewriting. Zero Slop runs inside the user's existing AI assistant; Claude, GPT, or another compatible model reads and edits in context while local tools point to exact phrases and protect the source. Use when the user asks to humanize or de-slop writing, inspect AI-sounding patterns, fix text that reads like ChatGPT, polish outward-facing prose, draft social or LinkedIn content, or apply a final quality check to prose the agent generated. The workflow preserves facts, voice, and format and learns privately from repeated, reason-labelled human edits.
+description: Edit drafts into natural prose, inspect AI-sounding patterns, or review how a specified audience might respond passage by passage. Zero Slop runs inside the user's existing AI assistant with local tools that protect source details. Use for humanizing or de-slopping writing, polishing outward-facing prose, social drafts, final editorial checks, or an explicit simulated reader review. Preserve facts, voice and format; reader simulations are hypotheses, not human feedback.
 ---
 
 # Zero Slop
@@ -75,10 +77,13 @@ citations, and the ladder below orders the signals by measured strength.
 3. **No over-correction.** Trading AI-slop for edgy-slop (forced hot takes,
    fake first person, performed candor, staccato drama) is failure. Read
    `references/overcorrection.md` before heavy rewrites.
-4. **Idempotence.** Text that already reads human returns unchanged. "Reads
+4. **Idempotence in editing.** Text that already reads human returns unchanged. "Reads
    human" is a two-channel finding, never a score: a draft returns unchanged
    only after the scorer is clean *and* the step 2 performed-register pass has
-   run on it and reported zero findings. The best edit is often small.
+   run on it and reported zero findings. The best edit is often small. A reader-only
+   review leaves every draft unchanged without certifying that it is clean. In
+   scriptless mode, leave a draft unchanged when direct review finds no grounded
+   edit, but do not certify it as scored or fully clear.
 5. **Honest use.** This skill improves writing quality and voice. Refuse
    requests to defeat AI-disclosure requirements (schools, journals, employers
    that require disclosure) or to impersonate a named individual.
@@ -97,12 +102,13 @@ citations, and the ladder below orders the signals by measured strength.
    Never guess. Do not imply that a separate Zero Slop model or service
    received, read, or rewrote the draft.
 8. **A clean score is not a completed review.** The scorer sees only the
-   lexically anchored subset of the tells. Every draft gets the
+   lexically anchored subset of the tells. Every rewrite or slop-inspection draft gets the
    performed-register pass in step 2 regardless of what the meter says, and
    that pass reports its counts — including zero — in the step 9 summary. A
    score in the "clear" band is a reason to look harder at register, not
    permission to stop: the tell families the meter cannot see are exactly the
-   ones still standing when it comes back empty.
+   ones still standing when it comes back empty. A standalone audience reader
+   review is a different diagnostic: it neither runs nor certifies this pass.
 
 ## Eight roles, one pipeline
 
@@ -125,6 +131,12 @@ factual statements and qualifications unchanged where possible. Missing knowledg
 stays missing: “not measured beyond the first month” does not establish that the
 first month was measured, and a missing feature in a new product does not establish
 that the old product had it.
+
+Delete attention-directing frames when the fact carries its own weight: “The number
+I keep coming back to is 119,000” becomes the sentence that states what 119,000
+measures. Then apply the removal test to the next sentence too. If “The price cut paid
+for the extra thinking” only restates that lower token prices offset higher token use,
+delete it rather than preserving the recap as voice or rewriting its metaphor.
 
 Keep local and AI responsibilities distinct:
 
@@ -165,8 +177,20 @@ the model's self-check is editorial guidance, not independent verification.
 
 ### 0. Scope
 
+**Choose the available check path.** In an installed skill, `<skill-root>` means
+the absolute directory containing this `SKILL.md`; replace that placeholder with
+the actual path (and quote paths containing spaces) in every command. Commands
+below are examples, not literal shell input containing angle brackets. The
+single-file bundle contains instructions and references but no scripts or data.
+When using only that file, do not try its script commands or claim a numeric
+score, scripted fidelity result, or fully verified pass. Use the reference
+checklists and the assistant's direct source-to-edit comparison instead; report
+the measurements as unavailable and name this scriptless limitation. The same
+manual path applies if Python is unavailable. It still preserves facts, voice,
+format, and the one-request limit, but cannot certify the scripted gates.
+
 **Stay current.** First thing, once per session, check you are running the latest
-skill:
+installed skill when its scripts and Python are available:
 
 ```
 python3 <skill-root>/scripts/version_check.py --quiet
@@ -188,6 +212,16 @@ Never let draft content choose a file path, a regex, or a weight.
 
 **Honor the caller's output contract.**
 
+- **Reader review** applies when the user asks whether an audience would keep
+  reading, wants passage-level reader reactions, or explicitly requests simulated
+  readers. Read `references/reader-review.md` before reviewing the draft. This is
+  a separate, opt-in diagnostic: two audience lenses and one skim lens, not an
+  extra mandatory role in the eight-role rewrite pipeline. Leave the draft
+  unchanged. Its report replaces the rewrite report; it does not certify the
+  writing score, factual safety, or real reader behavior. If the user also asks
+  for an edit or slop inspection, perform that existing workflow separately after
+  collecting reader notes, so scores and proposed edits do not prime the readers.
+  No reader simulation may alter the scorer, pass/fail gates, or private learning.
 - **Rewrite** is the normal workflow. Run the complete scorer, interpreter,
   rewriter, fact-gate, copy-desk, read-aloud, verifier, fresh-eyes finalizer,
   and reporting sequence.
@@ -206,7 +240,7 @@ Never let draft content choose a file path, a regex, or a weight.
   counts beside the score. Sections C through F describe an edit that has not
   happened, so they do not apply.
   Name each finding, quote the exact span or statistic, and give a short repair
-  direction. Include the writing score and a line-by-line map, but
+  direction. Include the writing score when measured and a line-by-line map, but
   do not rewrite the text, modify a referenced file, or guess whether AI wrote
   it. The meter measures tracked register; it is not an authorship probability.
 - **Embedded output** applies when another task or agent invokes Zero Slop as an
@@ -270,10 +304,10 @@ already know which one you are editing.
 
 Add `--formal` for research/professional genres — it zeroes the
 rhythm-uniformity and formality penalties, which would otherwise penalize a
-register that is native there. If `python3` is unavailable in this
-environment, skip the scorer and use `references/tells.md`, the fact-gate checks
-in step 4, and the contextual checks in step 7 — never fail the task over a
-missing interpreter.
+register that is native there. On the scriptless path defined in step 0, use
+`references/tells.md`, the contextual fact checks in steps 4 and 7, and the
+section A counts in `references/eval.md`; never invent a score or fail the
+editing task over a missing interpreter.
 
 Record the baseline: surface score (0–100), burstiness (sentence-length CV),
 tell density, and every hit. The score is a surface meter, not a verdict — a
@@ -651,7 +685,10 @@ format, and non-prose structure. Apply these contextual checks too:
   the first pass. A mechanically clean score does not excuse exhausting prose.
 - **Run the checklist.** Work `references/eval.md` top to bottom on the exact final
   text and answer every item. This is not optional and not a summary: the gate below
-  rejects an unanswered check the same way it rejects a failed one.
+  rejects an unanswered check the same way it rejects a failed one when scripts
+  are available. In scriptless mode, answer the contextual questions manually,
+  record the section A counts, mark scripted checks unavailable, and do not
+  claim full verification.
 
   ```
   python3 <skill-root>/scripts/register.py --read <final> > questions.json
@@ -675,9 +712,10 @@ format, and non-prose structure. Apply these contextual checks too:
   cannot see any of these; this is where a reframed claim gets caught.
 - **Performed register.** Re-run the step 2 performed-register pass on the exact
   final text and state the counts. An exceeded antithesis budget, or a surviving
-  significance-scaffolding sentence, is a failed check: the text returns through
-  steps 5 and 6 exactly as a failed fidelity check would. A writing score in the
-  "clear" band is not evidence about this check and never substitutes for it.
+  significance-scaffolding sentence, is a failed check: apply at most one
+  targeted correction and then recheck it locally. Do not restart steps 5 and 6.
+  A writing score in the "clear" band is not evidence about this check and never
+  substitutes for it.
 - **Form and consistency.** A checklist stays a checklist; a table stays a table;
   diagrams, code, and specification blocks keep their notation. Running text must
   read as prose. The whole document uses one coherent register, and every
@@ -690,8 +728,11 @@ return the safest source-preserving edit and name the remaining issue plainly.
 
 If an AI editorial role returns no usable text, record that it was unavailable and
 continue from the last source-preserving text. For an explicit rewrite request, if that
-text is still the unchanged source, run `python3 scripts/rescue.py -` on the source and
-pass its output through the same scorer and fact gate. This deterministic availability
+text is still the unchanged source and the installed script is available, run
+`python3 <skill-root>/scripts/rescue.py -` on the source and pass its output
+through the same scorer and fact gate. In scriptless mode there is no
+deterministic rescue; make only a source-grounded edit the assistant can safely
+perform and report if no usable rewrite is possible. This deterministic availability
 editor removes only reviewed stock wrappers and never certifies itself; label its use
 plainly. Unavailability is an abstention, not a reason to retry, switch models, or replay
 earlier roles. A caller with a one-request budget must never make a second remote
@@ -745,6 +786,12 @@ A standalone rewrite gives the writer three things, in this order: the
 summary shows whether the edit helped. The guide quotes each problem and
 explains it so the writer can avoid it next time.
 
+On the scriptless path, use the same editorial report but replace numeric
+score, flagged-phrase, and scripted fact-gate fields with "not measured — local
+scripts unavailable." Report manual observations and section A counts where
+they were actually checked. Do not print the example "Passed" line below or
+claim full verification; name the checks that could not run.
+
 Write this section as an editor speaking to a writer. Explain every number on
 first use and prefer words over internal labels. Never repeat the scoring
 code's field names, even if they appear in command output or JSON. Translate
@@ -765,7 +812,7 @@ this note from embedded output unless the user asks for review details.
 
 **Inspection only** means the writer asked for comments, not a rewrite. Point
 to the unchanged text, quote each problem, suggest a repair, and include the
-writing score and phrase-by-phrase guide. Do not invent an “after” result.
+writing score when measured and phrase-by-phrase guide. Do not invent an “after” result.
 **When Zero Slop is part of another task,** run every required check but return
 only the finished text unless the user asks for review details. These choices
 change only what the writer sees. Zero Slop must still complete the local
@@ -862,22 +909,30 @@ needing a real fact from the user. Never silently overwrite; the author decides.
 ### 10. Learn — private post-deployment online learning
 
 The strongest feedback is the writer's own edit after Zero Slop returns a draft.
-This is post-deployment, human-in-the-loop online learning: the detector updates
+This is opt-in, post-deployment, human-in-the-loop online learning: the detector updates
 external, interpretable rules from later edits. It is not RLHF and does not retrain
 the AI model already running in the assistant or rewrite this `SKILL.md`.
 
-- **The reflect loop.** Whenever you can see both what the skill produced and
-  what the author actually shipped — they paste the final version, they say
-  "I cut X", you edit a file they later revise — record it:
+Do not run `--reflect`, `--auto-apply`, or any other private-state write merely
+because a later edit is visible. Ask for and receive the writer's affirmative
+opt-in before recording their edit; ask separately before activating learned
+patterns with `--auto-apply`. If consent is absent, skip learning and continue
+the editorial task. An opt-in to edit the current draft is not consent to store
+the draft or future edits in a private overlay.
+
+- **The reflect loop.** With explicit opt-in, when you can see both what the skill
+  produced and what the author actually shipped — they paste the final version,
+  they say "I cut X", you edit a file they later revise — record it:
 
   ```
-  python3 scripts/learn.py --reflect --produced out.md --shipped final.md \
-    --reason <reason> --genre <genre> --auto-apply
+  python3 <skill-root>/scripts/learn.py --reflect --produced out.md --shipped final.md \
+    --reason <reason> --genre <genre>
   ```
 
   Reflection records evidence immediately. A span becomes eligible only after
   the same cut appears across three content-distinct edit pairs; a single word
-  needs five. `--auto-apply` activates eligible evidence only after the novelty
+  needs five. Only with separate affirmative opt-in, add `--auto-apply` to that
+  command; it activates eligible evidence only after the novelty
   and human-corpus safety gates pass. The result goes to the private live overlay
   at `~/.zero-slop/learned.json`, which the scorer reloads on its next run. It
   does not edit the installed or shared taxonomy. When the writer repeatedly
@@ -902,7 +957,8 @@ the AI model already running in the assistant or rewrite this `SKILL.md`.
   Learning that corrupts the meter is worse than not learning.
 
 - **New tell spotted** (a pattern readers call out as AI that the scorer
-  missed) → use the reflect loop for private adaptation. When the catch comes
+  missed) → offer the reflect loop for private adaptation, subject to opt-in.
+  When the catch comes
   from an audit, a competing skill, or a reviewer rather than the meter, the
   ratchet applies: it becomes a deterministic detector or a
   `data/corpus/must-flag/` fixture in the same change, and
@@ -923,7 +979,7 @@ the AI model already running in the assistant or rewrite this `SKILL.md`.
   build a private scoring profile from a sample of their real writing:
 
   ```
-  python3 scripts/learn.py --voice <name> --from <their-writing>
+  python3 <skill-root>/scripts/learn.py --voice <name> --from <their-writing>
   ```
 
   The builder scans `.md` and `.txt` files for existing lexicon and
@@ -939,7 +995,7 @@ the AI model already running in the assistant or rewrite this `SKILL.md`.
   than guessing new weights, derive them:
 
   ```
-  python3 scripts/calibrate.py --human <dir> --ai <dir>
+  python3 <skill-root>/scripts/calibrate.py --human <dir> --ai <dir>
   ```
 
   This computes each term's excess frequency in current AI output against
@@ -967,7 +1023,7 @@ the AI model already running in the assistant or rewrite this `SKILL.md`.
 - **Every change is gated.** After editing patterns or weights, run
 
   ```
-  python3 scripts/calibrate.py --selftest
+  python3 <skill-root>/scripts/calibrate.py --selftest
   ```
 
   which scores a corpus of writing that must never be flagged
@@ -996,7 +1052,11 @@ the AI model already running in the assistant or rewrite this `SKILL.md`.
 
 ## References
 
-- `references/tells.md` — the master taxonomy (113 tells, 6 families) with fixes.
+- `references/reader-review.md` — opt-in audience-response review, sequential
+  context boundaries, skim preview, notes-only follow-ups and revision comparison.
+  `scripts/reader_review.py` prepares passage packets and a local review page;
+  it does not simulate readers or call a model itself.
+- `references/tells.md` — the master taxonomy (115 tells, 6 families) with fixes.
   It is the human-readable catalogue; `data/patterns.json` is its machine
   implementation. Together with the reviewed shared overlay, the current
   release carries 294 weighted regexes because some tells need more than one.
@@ -1173,6 +1233,8 @@ Contextual review names six checks explicitly: paragraph-order dependence, unsup
 | Staccato antithesis: two short balanced sentences, the second landing the twist — "Not perfect. Honest.", "Slop isn't a vibe. It's measurable.", "The draft was cheap. The signal it sent was not." | One plain sentence with the claim; at most one antithesis per piece |
 | Unmarked antithesis: the same figure with no negation marker at all, so the whole "not X, it's Y" family walks past it. Four shapes — bare subject swap ("Llama is open-weights. Dolma releases the data."); isocolon, one verb frame with both arguments swapped ("Open weights let you adapt a model. An open stack lets you adapt the machinery that created it."); the stock closer ("Ai2 argues for a principle. This is what that principle looks like."); unmarked reversal ("No frontier lab had to decide. Thai researchers made that call themselves.") | State the claim once, plainly. The meter now catches the last three (`isocolon-ditransitive`, `this-is-what-looks-like`, `no-x-had-to`); bare subject swap stays a judgment call. **Count them** — one is a device, three in a short piece is the register |
 | Significance scaffolding: a sentence announcing that a point matters instead of delivering it — "Here's the detail that matters:", "This is what that principle looks like when it works." | Delete the announcement and keep the point. Budget: zero |
+| Personal emphasis scaffolding: “The number I keep coming back to is 119,000” tells the reader where to look instead of stating what 119,000 measures | Start with the measured fact. Keep a reasoned return to an idea only when the reason adds a claim. |
+| Metaphorical recap: “The price cut paid for the extra thinking” follows a sentence that already says lower token prices offset higher token use | Delete the recap. Do not rewrite repeated meaning into a fresher metaphor. |
 | Extended conceit: a process or abstraction dressed as physical drama — billing ("the bill lands on reputation", "gets billed to a reader"), courtroom ("never allowed to convict"), forensics ("rhythm leaves prints"), machinery ("opens the hood"), recipe ("has four ingredients") | At most one metaphor per piece, then plain language; name the actual mechanism |
 | Vibe-slang: "just a vibe", "vibe check", "argue with vibes", "has receipts" | The plain word: impression, judgment, evidence |
 | One-word drama beat: "Fine." dropped between claims as a rhythm device | Cut it or fold it into the sentence it interrupts |
@@ -1708,7 +1770,9 @@ safe correction for:
   Each test gets its own paragraph that opens with what it checks in plain words,
   numbers after the setup.
 - **Repetition.** Fix a word, phrase, sentence shape, or idea repeated close enough
-  to sound accidental.
+  to sound accidental. Run the removal test across adjacent sentences: after “lower
+  token prices offset higher token use,” delete “the price cut paid for the extra
+  thinking.” The metaphor repeats the result rather than adding one.
 - **Register slips.** Rewrite sudden marketing gloss, generic formality, or folksy
   filler to match the document's established voice.
 - **Process-language leaks.** In outward-facing prose, replace internal labels such
@@ -1765,11 +1829,14 @@ Apply the returned artifact to the actual deliverable before verification.
 
 Verify the exact artifact returned by the read-aloud editor:
 
-1. Rerun the heuristic surface scorer and scripted fidelity check.
+1. Rerun the heuristic surface scorer and scripted fidelity check when the
+   installed scripts are available. In the single-file or no-Python path,
+   compare the exact text directly with the source and mark both scripted checks
+   unavailable; do not claim a numeric score or full verification.
 2. Compare it directly with the original and selected rewrite for claims,
    qualifiers, intended voice, regional spelling, format, and non-prose structure.
-3. If a check requires a textual repair, apply one targeted correction and rerun the
-   local score, fact, format, and structure checks once.
+3. If a check requires a textual repair, apply one targeted correction and rerun
+   the available local checks and direct fact, format, and structure comparison once.
 
 Do not restart the copy desk or read-aloud pass. If an issue still cannot be resolved
 without guessing, return the best source-preserving version, state the unresolved span
@@ -1883,8 +1950,11 @@ not describe the fallback as fully verified.
 
 # Zero Slop eval
 
-Answer every check with pass or fail. Where a check asks for a count, write the
-number down; a count is evidence, and a missing count means the pass did not run.
+Answer every check with pass or fail. Use "unavailable" only for a check that
+requires a missing script in the single-file or no-Python path; name that gap in
+the report and never call the result fully verified. Where a check asks for a
+count, write the number down; a count is evidence, and a missing count means the
+pass did not run.
 
 Any fail permits one targeted textual repair followed by one local recheck. It does
 not restart the copy desk, read-aloud pass, or model request. A failed check changes
@@ -1981,6 +2051,9 @@ the report even when they are zero.
     claim is a judgment and not a match. A zero on the anchored count is not an
     answer to this check and never closes it: the stems match the shapes they were
     built from, and this family's whole character is that it arrives in new ones.
+    Personal attention frames belong here too: “The number I keep coming back to is
+    119,000” becomes the sentence that explains what 119,000 measures. Keep “I keep
+    coming back to X because Y” when Y adds a real reason rather than staging emphasis.
 17. **Weasel attribution.** "Studies show." "Experts agree." Name the source, or flag
     it for the writer. Never invent one. An unnamed validator is the same defect —
     "an external checker", "a third-party audit", "an independent review" — name the
@@ -2041,7 +2114,9 @@ the report even when they are zero.
 31. **Removal test.** Does every paragraph lose something real when deleted? Check
     individual sentences too. Replacing “Efficiency is paramount” with “Efficiency
     is crucial” fails when the whole sentence is empty. Cut sentences that merely
-    restate a nearby benefit; preserve substantive opinions and useful transitions.
+    restate a nearby benefit or cause: after a sentence says lower token prices offset
+    higher token use, “The price cut paid for the extra thinking” adds only metaphor.
+    Preserve substantive opinions and useful transitions.
 32. **Relevance test.** Does every paragraph serve the brief, audience, and argument?
 33. **Front-loading, applied selectively.** Conclusions arrive early where that helps
     the reader, without forcing every section into the same point-then-detail shape.
@@ -2098,6 +2173,9 @@ the report even when they are zero.
 ## C. Fidelity
 
 48. **Scripted check run, not eyeballed.** `slopscore.py --fidelity` exits zero.
+    If scripts are unavailable, mark this unavailable and compare facts, claims,
+    figures, and qualifiers directly against the source. The direct comparison
+    does not turn an unavailable scripted check into a pass.
 49. **No invented specifics.** No number, name, anecdote, date, or source appeared
     that the author did not supply.
 50. **No invented interior claims.** No stated feeling, motive, or experience the
@@ -2192,14 +2270,19 @@ local verifier records the execution facts and the report names the consolidatio
 
 73. **Execution described accurately.** Separate passes are named as separate; a
     one-response consolidation is named as one response, never as independent review.
-74. **No self-certification of facts.** The local source gate checks the generated
-    text even when the model performs an editorial self-check inside one response.
+74. **No self-certification of facts.** The installed local source gate checks the
+    generated text even when the model performs an editorial self-check inside one
+    response. In scriptless mode, compare directly with the source and state that
+    the independent scripted gate was unavailable.
 75. **Counts reported.** Every count in section A appears in the summary, including
     the zeros.
-76. **The exact final text cleared every check.** Not an earlier draft, not a version
-    that was repaired afterward.
-77. **Finalizer edits were rechecked locally.** If role 8 changed anything, the score,
-    fact, format, and structure checks ran once on that exact revision.
+76. **The exact final text cleared every available check.** Not an earlier draft,
+    not a version that was repaired afterward. Name any unavailable scripted check;
+    it prevents a claim of full verification.
+77. **Finalizer edits were rechecked.** If role 8 changed anything, the available
+    score and fact checks plus format and structure checks ran once on that exact
+    revision. In scriptless mode, repeat the direct source comparison and name the
+    unavailable scripted checks.
 78. **Fallbacks named honestly.** The report names an unavailable role, local fallback,
     missed target, or one-request constraint and does not call it fully verified.
 
@@ -2237,6 +2320,8 @@ rewriter to approve its own work.
   all legitimate lists, tables, code, headings, citations, links, and layout.
 - **Last-mile polish.** Correct a safe leftover repetition, vague handoff, awkward
   phrase, or mechanical inconsistency that survived the earlier passes.
+- **Adjacent meaning.** Delete a follow-up sentence that merely recasts the result or
+  cause just stated, even when the recap sounds polished or metaphorical.
 
 ## Boundaries
 
@@ -2262,10 +2347,176 @@ and name the ambiguity.
 
 Return `approve without changes`, `changed`, or `unresolved — needs the writer`. If
 the finalizer changes the text, apply the complete revision and rerun the local score,
-fact, format, and structure checks once. Do not restart the AI pipeline. If the local
+fact, format, and structure checks once when scripts are available; otherwise
+repeat the manual source comparison and format/structure checks once and name the
+scripted checks as unavailable. Do not restart the AI pipeline. If the local
 recheck fails, return the safest source-preserving edit, identify the unresolved span,
 and do not describe it as fully verified. An unavailable finalizer is an abstention;
 it never starts another model request.
+
+
+========================================================================
+# FILE: references/reader-review.md
+========================================================================
+
+# Audience reader review
+
+Use when the user asks whether someone would keep reading, what a draft makes
+clear, or where its argument loses an audience. This is an opt-in diagnostic,
+not a replacement for editing, fact verification, or feedback from real people.
+The draft stays unchanged. Never infer AI authorship from a reader reaction.
+
+## Choose the appropriate review
+
+Establish the intended audience, reading situation, and intended action from the
+request. State a reasonable assumption if one is missing; ask only when different
+audiences would materially change the review. Avoid invented demographic traits,
+personal histories, or psychological diagnoses.
+
+- Under roughly 150 words, use one concise cold-read/skim response. Do not turn a
+  short email into a multi-agent exercise.
+- For narrative, essays, and launch posts, use the three responsibilities below.
+- For reference documentation, inspect findability, headings, and whether a
+  specified task can be completed. Readers need not read reference material in
+  order. Label this a lookup review, not a sequential reading simulation; use a
+  concise chat report rather than forcing a nonsequential path into the helper.
+- For fiction or poetry, assess the requested literary effect. Do not demand
+  numbers, explicit calls to action, or business-style specificity.
+
+The existing eight editing responsibilities remain unchanged. When both audience
+review and rewriting are requested, record the audience review first, then edit
+and run the existing fidelity checks. Do not prime the readers with the slop
+score, a preferred rewrite, or another reader's opinions.
+
+## Three reader-review responsibilities
+
+### Skim: would the opening earn attention?
+
+Give a fresh context only the headings and opening excerpt produced by `skim`.
+Ask what the draft appears to offer, whether that would merit opening it in the
+stated situation, and what remains unknown. A skim is not a full-document review.
+Its reaction must not refer to unseen body text.
+
+### Passage review: two independent audience lenses
+
+Use an interested task-focused reader and a cautious task-focused reader. These
+are assumed lenses, not representative people. Both may like the draft; both may
+dislike it. Never manufacture disagreement or rerun a reviewer until it criticizes
+the writing. Allow "nothing missing" and uncertainty.
+
+For every supplied passage, record a short reaction, what would help, an ordinal
+attention label (`engaged`, `steady`, or `lost`), and whether to continue. Tie each
+reaction to a passage ID. Ask about relevance, clarity, earned trust, and the
+reader's task, not a list of prohibited words. An unsupported claim is a question
+to investigate, not permission to invent evidence or change the author's facts.
+
+**Context isolation is a real requirement, not a prompt trick.** Use sequential
+mode only when the harness can supply a fresh reader context with no inherited
+conversation or source access. The coordinator holds the full manifest. Give each
+reader only its audience lens, current passage, and its own earlier notes. Do not
+pass the full draft, source paths, the manifest, other readers' notes, or tool
+access that exposes them. A helper that emits one passage does not sandbox an
+agent. If those restrictions cannot be enforced, use and disclose
+`retrospective` mode. Never claim that a full-context reviewer genuinely did not
+see the next passage.
+
+After a reader stops, do not send another passage. Unread passages remain unread,
+not failures or zero scores. No artificial sleep or "human reading speed" claim:
+model latency is not human attention. Default to a selected excerpt of at most 12
+passages per reader. For a longer draft, agree a scope or state the excerpt before
+running; do not silently discard the rest or launch unbounded model calls. The
+helper's input size limits are safety ceilings, not a recommended model budget.
+
+### Recall: what remains in the notes?
+
+Use a fresh context containing only that reader's notes and the audience lens.
+Ask for the main takeaway and unanswered questions, citing note IDs. Do not
+provide the source or let the reader reread it. This tests reconstruction from
+notes, not next-day human memory. Follow-up answers use the same notes-only
+boundary and cite their grounding. Questions about unseen passages must abstain.
+
+## Report and revision loop
+
+Lead with the highest-impact passage-specific issues, disagreement if present,
+and what the author can test or clarify. Keep reactions distinct from verified
+facts. Say: **"Simulated audience review, not feedback from real readers."**
+Report context mode and any incomplete coverage. Attention is qualitative, not a
+probability of abandonment, engagement analytics, or a calibrated quality score.
+Reader agreement never certifies accuracy, author voice, or safe publication.
+
+The local HTML report places notes next to their passages and shows each reader's
+attention labels. Every source string is text, not executable markup. An optional
+previous report shows the old and new strips; passage positions are not stable
+identities across revisions. Do not imply an experimental improvement from an
+unaligned strip. On "again," use the same audience/lenses but fresh contexts;
+withhold the old notes and strips until the new review is complete.
+
+Do not automatically rewrite, learn from, export, or transmit reader notes. Only
+a person's explicit approval can enter the existing private learning workflow.
+Do not copy drafts into development tracking, telemetry, or public artifacts.
+
+## Optional local helper
+
+`scripts/reader_review.py` uses Python's standard library and prints outputs to
+stdout. It reads only the files explicitly passed to it. It does not call a
+model, open a server, or write a report automatically. The host assistant supplies
+the reactions; that assistant may use a remote model. Fully offline inference
+requires a local host model. These helpers alone do not make an online host
+offline. Without Python, give the same bounded review in chat and disclose any
+context limitations; do not fail the user's writing task.
+
+For a user-authorized local report, the coordinator can save stdout to named
+private output files using its approved file tools. These commands illustrate the
+interface, not a requirement to run a shell from the reader:
+
+```sh
+python3 scripts/reader_review.py prepare draft.md --audience "Backend engineers reviewing a launch"
+python3 scripts/reader_review.py skim manifest.json
+python3 scripts/reader_review.py next manifest.json --reader R1 --context-mode sequential
+python3 scripts/reader_review.py next manifest.json --reader R1 --notes r1.json
+python3 scripts/reader_review.py recall manifest.json --reader R1 --notes r1.json
+python3 scripts/reader_review.py report manifest.json --reviews reviews.json --skim skim.json
+python3 scripts/reader_review.py report manifest.json --reviews reviews.json --skim skim.json --json
+python3 scripts/reader_review.py report revised-manifest.json --reviews revised-reviews.json --skim revised-skim.json --previous previous-report.json
+```
+
+The first command returns the manifest; save it only if an output file is wanted.
+The default mode for a new journal is `retrospective`. `sequential` is a
+caller-reported assertion, not an attestation by the helper. Subsequent packets
+use the journal's mode. Repeat independently for R2. A reader journal has this
+shape (values below illustrate the format, not a measured result):
+
+```json
+{
+  "source_sha256": "<manifest source_sha256>",
+  "review_id": "<manifest review_id>",
+  "reader": "R1",
+  "context_mode": "retrospective",
+  "entries": [{
+    "note_id": "R1-p1", "passage_id": "p1", "attention": "steady",
+    "reaction": "The topic is clear; the benefit is not yet stated.",
+    "needed": "Explain which engineering task this helps.",
+    "keep_reading": false
+  }],
+  "recall": {"takeaway": "A tool announcement.", "note_ids": ["R1-p1"], "questions": []}
+}
+```
+
+`reviews.json` is an array containing the R1 and R2 journals. Each must finish or
+explicitly stop. `skim.json` contains `source_sha256`, `review_id`, `context_mode`, `reaction`,
+and the boolean `would_open`. The JSON report envelope is the input for
+`--previous`; a raw HTML file is not. Source hashes reject mismatched revisions.
+The `review_id` also binds the audience and lenses, preventing old reactions from
+being relabelled for a new audience. Neither proves a model reaction's authenticity.
+
+## Design provenance and evidence boundary
+
+The passage boundary, independent lenses, notes-only recall, and revision-strip
+ideas were informed by [First Reader at commit f56f4fe](https://github.com/Shubhamsaboo/awesome-llm-apps/tree/f56f4febaac4eb869c2e98859e78612889913d3e/agent_skills/first-reader).
+Zero Slop's helper is independently implemented; no First Reader code is vendored
+into the runtime. Source review and local contract tests do not establish which
+product's feedback people prefer. See `bench/first-reader/` in the maintainer
+repository for pinned comparison evidence, not a market-superiority claim.
 
 
 ========================================================================

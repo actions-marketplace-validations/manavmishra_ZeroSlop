@@ -1,8 +1,8 @@
 name: synchronize release
 
 # The validation workflow calls this reusable workflow only after its code,
-# website, and MCP jobs pass on main. GitHub suppresses workflow triggers caused
-# by GITHUB_TOKEN, so this job creates the tag and dispatches the three tag-owned
+# Action, website, and MCP jobs pass on main. GitHub suppresses workflow triggers caused
+# by GITHUB_TOKEN, so this job creates the tag and dispatches the tag-owned
 # publication workflows explicitly.
 
 on:
@@ -85,7 +85,7 @@ jobs:
           fi
           echo "name=$tag" >> "$GITHUB_OUTPUT"
 
-      - name: Dispatch npm, release and MCP Registry publishers
+      - name: Dispatch npm, PyPI, release and MCP Registry publishers
         if: steps.head.outputs.publish == 'true' && steps.tag.outputs.created == 'true'
         env:
           GH_TOKEN: ${{ github.token }}
@@ -93,6 +93,7 @@ jobs:
         run: |
           set -euo pipefail
           gh workflow run publish-npm.yml --ref "$TAG"
+          gh workflow run publish-pypi.yml --ref "$TAG"
           gh workflow run release-on-tag.yml --ref "$TAG"
           gh workflow run publish-mcp.yml --ref "$TAG"
-          echo "dispatched npm, GitHub release and MCP Registry publication for $TAG"
+          echo "dispatched npm, PyPI, GitHub release and MCP Registry publication for $TAG"

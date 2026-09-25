@@ -1,0 +1,21 @@
+name: Check repository star access
+on:
+  workflow_dispatch: {}
+permissions:
+  contents: read
+jobs:
+  check:
+    if: github.repository == 'manavmishra/ZeroSlop' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5
+        with:
+          node-version: '24'
+      - name: Read timestamped stars with only this repository's temporary token
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: node growth/check-star-access.mjs

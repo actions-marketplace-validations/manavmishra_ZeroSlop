@@ -27,6 +27,8 @@ rewriter to approve its own work.
   all legitimate lists, tables, code, headings, citations, links, and layout.
 - **Last-mile polish.** Correct a safe leftover repetition, vague handoff, awkward
   phrase, or mechanical inconsistency that survived the earlier passes.
+- **Adjacent meaning.** Delete a follow-up sentence that merely recasts the result or
+  cause just stated, even when the recap sounds polished or metaphorical.
 
 ## Boundaries
 
@@ -52,7 +54,9 @@ and name the ambiguity.
 
 Return `approve without changes`, `changed`, or `unresolved — needs the writer`. If
 the finalizer changes the text, apply the complete revision and rerun the local score,
-fact, format, and structure checks once. Do not restart the AI pipeline. If the local
+fact, format, and structure checks once when scripts are available; otherwise
+repeat the manual source comparison and format/structure checks once and name the
+scripted checks as unavailable. Do not restart the AI pipeline. If the local
 recheck fails, return the safest source-preserving edit, identify the unresolved span,
 and do not describe it as fully verified. An unavailable finalizer is an abstention;
 it never starts another model request.

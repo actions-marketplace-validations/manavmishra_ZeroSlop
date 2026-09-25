@@ -1153,6 +1153,7 @@ fix sit mid ambiguity team teams user users product feature features day days we
 weeks month months year years time thing done anyway besides meanwhile therefore
 worse worst harder easier simpler faster slower bigger smaller lots plus minus
 are artificial bookmark despite hey modern please researchers save unpopular welcome
+stare rookie missed
 """.split())
 NOT_NAME_WORDS = {word.lower() for word in NOT_NAMES} | COMMON_WORDS
 
@@ -1264,8 +1265,8 @@ def facts(text, _other=""):
 # a feeling verb, because the goal is catching an INVENTED inner state, and the
 # comparison below cancels any that were already in the source.
 INTERIOR_STATE_RX = re.compile(
-    r"\b(?:I|we)\s+(?:was|were|am|felt|feel|got)\s+"
-    r"(?:(?:very|really|extremely|quite|so)\s+)?(?P<state>[A-Za-z]+)", re.I)
+    r"\b(?:I|we)\s+(?:genuinely\s+)?(?:was|were|am|felt|feel|got)\s+"
+    r"(?:(?:very|really|extremely|quite|so|genuinely)\s+)?(?P<state>[A-Za-z]+)", re.I)
 INTERIOR_COGNITION_RX = re.compile(
     r"\b(?:I|we)\s+(?P<cognition>remember(?:ed)?|recall(?:ed)?|realise(?:d)?|"
     r"realize(?:d)?|knew|fear(?:ed)?|hope(?:d)?|worr(?:y|ied)|panic(?:ked)?|"

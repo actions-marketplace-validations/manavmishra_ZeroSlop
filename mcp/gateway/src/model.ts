@@ -2,9 +2,9 @@ import { readBoundedJson } from "./bounded-json";
 import { dailyBudgetClient, HostedBudgetError } from "./budget";
 import { boundedOperation, checkCancelled, PipelineCancelledError, type PipelineControl } from "./cancellation";
 
-// The website endpoint owns a 24-second model deadline. This caller allows a
-// small response margin while the whole MCP request remains bounded.
-const REQUEST_TIMEOUT_MS = 28_000;
+// The website may try two providers. Leave bounded room for both deadlines,
+// two budget checks, and the gateway-to-website response transit.
+const REQUEST_TIMEOUT_MS = 65_000;
 const MIN_ATTEMPT_MS = 750;
 const MAX_EDITOR_RESPONSE_BYTES = 256 * 1024;
 const MAX_EDITOR_OUTPUT_CHARS = 40_000;
@@ -15,6 +15,7 @@ export type ModelRole = "complete";
 export type ModelReply = {
   text: string;
   rung: string;
+  providerCalls: number;
 };
 
 function hex(bytes: ArrayBuffer): string {
@@ -39,6 +40,7 @@ type EditorResponse = {
   provider?: unknown;
   model?: unknown;
   stored?: unknown;
+  providerCalls?: unknown;
 };
 
 function safeRungPart(value: unknown): string | null {
@@ -56,7 +58,9 @@ export function editorReply(value: unknown): ModelReply | null {
   const provider = safeRungPart(data.provider);
   const model = safeRungPart(data.model);
   if (!provider || !model) return null;
-  return { text: data.rewrite.trim(), rung: `${provider}:${model}` };
+  const providerCalls = data.providerCalls === undefined ? 1 : data.providerCalls;
+  if (!Number.isSafeInteger(providerCalls) || Number(providerCalls) < 1 || Number(providerCalls) > 2) return null;
+  return { text: data.rewrite.trim(), rung: `${provider}:${model}`, providerCalls: Number(providerCalls) };
 }
 
 export function tooShort(source: string, output: string, _role: ModelRole = "complete"): boolean {
@@ -76,6 +80,7 @@ export async function callRole(
   deadline: number,
   clientAddress = "",
   control?: PipelineControl,
+  onProviderCalls?: (count: 0 | 1 | 2) => void,
 ): Promise<ModelReply | null> {
   checkCancelled(control);
   const started = Date.now();
@@ -116,6 +121,10 @@ export async function callRole(
       if (!response.ok) {
         if (response.status === 429 || response.status === 503) {
           const errorBody = await readBoundedJson(response, 2048).catch(() => null);
+          if (errorBody && typeof errorBody === "object" && "providerCalls" in errorBody) {
+            const count = errorBody.providerCalls;
+            if (count === 0 || count === 1 || count === 2) onProviderCalls?.(count);
+          }
           const code = errorBody && typeof errorBody === "object" && "code" in errorBody ? errorBody.code : null;
           if (response.status === 429 && code === "usage_limit") {
             const retry = response.headers.get("retry-after") ?? "";
@@ -132,6 +141,7 @@ export async function callRole(
       }
       const payload = await readBoundedJson(response, MAX_EDITOR_RESPONSE_BYTES);
       const reply = editorReply(payload);
+      if (reply) onProviderCalls?.(reply.providerCalls as 1 | 2);
       if (!reply || tooShort(source, reply.text, role) || tooLong(source, reply.text, role) || reply.text === source) {
         console.warn(JSON.stringify({
           event: "editor_request_rejected", role, reason: "invalid_editor_output",

@@ -2,11 +2,36 @@
 """Repair stale release surfaces using existing publishers; never change versions."""
 import json
 import subprocess
+import time
 import urllib.error
 
 from deploy_mcp import API, MCP, VERSION, SHA, fetch_json
 from publication_guard import publication_guard
 from npm_record import publication_state
+
+
+# Recovery is read-only until the final, validated dispatch. A short retry only
+# covers transport failures that are known to be transient; it never turns an
+# unknown response or an authorization error into a publication request.
+TRANSIENT_HTTP_STATUSES = frozenset({408, 429, 500, 502, 503, 504})
+
+
+def retry_transient_read(url, *, read=fetch_json, attempts=3, sleep=time.sleep):
+    """Read release metadata with bounded retries for transient transport failures."""
+    if not isinstance(attempts, int) or attempts < 1:
+        raise ValueError("attempts must be a positive integer")
+    for attempt in range(attempts):
+        try:
+            return read(url)
+        except urllib.error.HTTPError as exc:
+            if exc.code not in TRANSIENT_HTTP_STATUSES:
+                raise
+            error = exc
+        except (TimeoutError, urllib.error.URLError) as exc:
+            error = exc
+        if attempt + 1 == attempts:
+            raise error
+        sleep(2 ** attempt)
 
 
 def missing_json(url, *, read=fetch_json):
@@ -18,7 +43,21 @@ def missing_json(url, *, read=fetch_json):
         raise
 
 
-def repair_plan(version, sha, *, read=fetch_json):
+def pypi_release_present(record, version):
+    """Check the exact release's two distributions, not PyPI's latest pointer."""
+    if not isinstance(record, dict) or not isinstance(record.get("info"), dict):
+        return False
+    if record["info"].get("name") != "zero-slop" or record["info"].get("version") != version:
+        return False
+    urls = record.get("urls")
+    if not isinstance(urls, list):
+        return False
+    files = {entry.get("filename") for entry in urls
+             if isinstance(entry, dict) and isinstance(entry.get("size"), int) and entry["size"] > 0}
+    return {f"zero_slop-{version}-py3-none-any.whl", f"zero_slop-{version}.tar.gz"} <= files
+
+
+def repair_plan(version, sha, *, read=fetch_json, retry_sleep=time.sleep):
     if not isinstance(version, str) or not VERSION.fullmatch(version):
         raise ValueError("a stable release version is required")
     tag = f"v{version}"
@@ -26,6 +65,16 @@ def repair_plan(version, sha, *, read=fetch_json):
     npm = publication_state(version, sha, fetch_fn=read)
     if npm["status"] == "unpublished":
         plan.append(("publish-npm.yml", tag, []))
+    pypi_url = f"https://pypi.org/pypi/zero-slop/{version}/json"
+    try:
+        pypi = read(pypi_url)
+    except urllib.error.HTTPError as exc:
+        if exc.code != 404:
+            raise
+        plan.append(("publish-pypi.yml", tag, []))
+    else:
+        if not pypi_release_present(pypi, version):
+            raise ValueError("PyPI has an incomplete or mismatched release; manual investigation is required")
     release = missing_json(f"{API}/releases/latest", read=read)
     assets = {asset.get("name") for asset in release.get("assets", [])
               if asset.get("state") == "uploaded" and isinstance(asset.get("size"), int) and asset["size"] > 0}
@@ -53,7 +102,11 @@ def repair_plan(version, sha, *, read=fetch_json):
                 or health.get("version") != version or health.get("scorer", {}).get("scorerVersion") != version
                 or card.get("serverInfo", {}).get("version") != version or spec.get("info", {}).get("version") != version):
             plan.append(("deploy-mcp.yml", "main", ["-f", f"release_tag={tag}"]))
-    registry = missing_json("https://registry.modelcontextprotocol.io/v0.1/servers/io.github.manavmishra%2Fzero-slop/versions/latest", read=read)
+    registry = missing_json(
+        "https://registry.modelcontextprotocol.io/v0.1/servers/"
+        "io.github.manavmishra%2Fzero-slop/versions/latest",
+        read=lambda url: retry_transient_read(url, read=read, sleep=retry_sleep),
+    )
     official = registry.get("_meta", {}).get("io.modelcontextprotocol.registry/official", {})
     if (registry.get("server", {}).get("version") != version
             or official.get("status") != "active" or official.get("isLatest") is not True):
@@ -69,7 +122,7 @@ def main():
     tag = f"v{version}"
     reference = missing_json(f"{API}/git/ref/tags/{tag}")
     if not reference:
-        # sync-release independently verifies all three validation jobs before
+        # sync-release independently verifies all four validation jobs before
         # creating anything, including on this manual recovery path.
         subprocess.run(["gh", "workflow", "run", "sync-release.yml", "--ref", "main"], check=True)
         print("Requested validated release recovery; no version or tag was changed here.")

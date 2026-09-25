@@ -57,7 +57,9 @@ safe correction for:
   Each test gets its own paragraph that opens with what it checks in plain words,
   numbers after the setup.
 - **Repetition.** Fix a word, phrase, sentence shape, or idea repeated close enough
-  to sound accidental.
+  to sound accidental. Run the removal test across adjacent sentences: after “lower
+  token prices offset higher token use,” delete “the price cut paid for the extra
+  thinking.” The metaphor repeats the result rather than adding one.
 - **Register slips.** Rewrite sudden marketing gloss, generic formality, or folksy
   filler to match the document's established voice.
 - **Process-language leaks.** In outward-facing prose, replace internal labels such
@@ -114,11 +116,14 @@ Apply the returned artifact to the actual deliverable before verification.
 
 Verify the exact artifact returned by the read-aloud editor:
 
-1. Rerun the heuristic surface scorer and scripted fidelity check.
+1. Rerun the heuristic surface scorer and scripted fidelity check when the
+   installed scripts are available. In the single-file or no-Python path,
+   compare the exact text directly with the source and mark both scripted checks
+   unavailable; do not claim a numeric score or full verification.
 2. Compare it directly with the original and selected rewrite for claims,
    qualifiers, intended voice, regional spelling, format, and non-prose structure.
-3. If a check requires a textual repair, apply one targeted correction and rerun the
-   local score, fact, format, and structure checks once.
+3. If a check requires a textual repair, apply one targeted correction and rerun
+   the available local checks and direct fact, format, and structure comparison once.
 
 Do not restart the copy desk or read-aloud pass. If an issue still cannot be resolved
 without guessing, return the best source-preserving version, state the unresolved span

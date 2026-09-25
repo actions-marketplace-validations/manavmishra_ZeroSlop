@@ -25,11 +25,11 @@ def validated_main(sha, *, fetch_fn=fetch_json):
     if not isinstance(run_id, int):
         raise ValueError("validation run has no numeric identity")
     jobs = fetch_fn(f"{API}/actions/runs/{run_id}/jobs?filter=latest&per_page=100")
-    required = {"validate", "website", "mcp"}
+    required = {"validate", "action", "website", "mcp"}
     passed = {job.get("name") for job in jobs.get("jobs", [])
               if job.get("status") == "completed" and job.get("conclusion") == "success"}
     if not required <= passed:
-        raise ValueError("release requires successful code, website and MCP validation at the exact commit")
+        raise ValueError("release requires successful code, Action, website and MCP validation at the exact commit")
 
 
 def publication_guard(tag, sha, *, require_tag=True, fetch_fn=fetch_json):
