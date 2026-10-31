@@ -1,6 +1,7 @@
 import { readBoundedJson } from "./bounded-json";
 import { dailyBudgetClient, HostedBudgetError } from "./budget";
 import { boundedOperation, checkCancelled, PipelineCancelledError, type PipelineControl } from "./cancellation";
+import { safeEditorDiagnostics, safeProviderAttempts, type EditorDiagnostics, type SafeProviderAttempt } from "./editor-diagnostics";
 
 // The website may try two providers. Leave bounded room for both deadlines,
 // two budget checks, and the gateway-to-website response transit.
@@ -11,6 +12,8 @@ const MAX_EDITOR_OUTPUT_CHARS = 40_000;
 const encoder = new TextEncoder();
 
 export type ModelRole = "complete";
+export type EditorFailure = "deadline" | "timeout" | "cancelled" | "configuration" | "unavailable" | "invalid_output" | "unchanged_output" | "transport";
+class EditorInvalidResponseError extends Error {}
 
 export type ModelReply = {
   text: string;
@@ -81,14 +84,27 @@ export async function callRole(
   clientAddress = "",
   control?: PipelineControl,
   onProviderCalls?: (count: 0 | 1 | 2) => void,
+  onFailure?: (reason: EditorFailure) => void,
+  onDiagnostics?: (diagnostics: EditorDiagnostics) => void,
 ): Promise<ModelReply | null> {
   checkCancelled(control);
   const started = Date.now();
   const remaining = deadline - Date.now();
   if (remaining < MIN_ATTEMPT_MS) {
+    onFailure?.("deadline");
     console.warn(JSON.stringify({ event: "editor_request_skipped", role, reason: "deadline" }));
     return null;
   }
+  let active = true;
+  const captureDiagnostics = (status: number, payload?: unknown) => {
+    if (!active) return;
+    try {
+      const safe = safeEditorDiagnostics(status, payload);
+      if (safe) onDiagnostics?.(safe);
+    } catch {
+      // Optional diagnostics must never change editing or allowance behavior.
+    }
+  };
   try {
     return await boundedOperation(async (signal) => {
       const body = JSON.stringify({
@@ -118,14 +134,28 @@ export async function callRole(
         },
         body,
       });
+      captureDiagnostics(response.status);
       if (!response.ok) {
+        let failure: EditorFailure = "unavailable";
+        let providerAttempts: SafeProviderAttempt[] = [];
         if (response.status === 429 || response.status === 503) {
           const errorBody = await readBoundedJson(response, 2048).catch(() => null);
+          providerAttempts = safeProviderAttempts(errorBody);
+          captureDiagnostics(response.status, errorBody);
           if (errorBody && typeof errorBody === "object" && "providerCalls" in errorBody) {
             const count = errorBody.providerCalls;
             if (count === 0 || count === 1 || count === 2) onProviderCalls?.(count);
           }
           const code = errorBody && typeof errorBody === "object" && "code" in errorBody ? errorBody.code : null;
+          const endpointError = errorBody && typeof errorBody === "object" && "error" in errorBody ? errorBody.error : null;
+          const endpointOutcome = errorBody && typeof errorBody === "object" && "editorOutcome" in errorBody ? errorBody.editorOutcome : null;
+          if (endpointOutcome === "timeout") failure = "timeout";
+          if (endpointOutcome === "invalid_output") failure = "invalid_output";
+          if (endpointOutcome === "configuration") failure = "configuration";
+          if (endpointOutcome === "cancelled") failure = "cancelled";
+          if (endpointError === "editor_timeout") failure = "timeout";
+          if (endpointError === "editor_invalid_output") failure = "invalid_output";
+          if (endpointError === "editor_configuration") failure = "configuration";
           if (response.status === 429 && code === "usage_limit") {
             const retry = response.headers.get("retry-after") ?? "";
             if (!/^\d{1,5}$/.test(retry) || Number(retry) < 1 || Number(retry) > 86400) throw new HostedBudgetError("budget_unavailable");
@@ -133,36 +163,51 @@ export async function callRole(
           }
           if (code === "budget_unavailable") throw new HostedBudgetError("budget_unavailable");
         }
+        onFailure?.(failure);
         console.warn(JSON.stringify({
           event: "editor_request_unavailable", role, status: response.status,
+          reason: failure,
+          providerAttempts,
           durationMs: Date.now() - started,
         }));
         return null;
       }
-      const payload = await readBoundedJson(response, MAX_EDITOR_RESPONSE_BYTES);
+      let payload: unknown;
+      try { payload = await readBoundedJson(response, MAX_EDITOR_RESPONSE_BYTES); }
+      catch { throw new EditorInvalidResponseError(); }
+      captureDiagnostics(response.status, payload);
       const reply = editorReply(payload);
       if (reply) onProviderCalls?.(reply.providerCalls as 1 | 2);
       if (!reply || tooShort(source, reply.text, role) || tooLong(source, reply.text, role) || reply.text === source) {
+        const failure = reply?.text === source ? "unchanged_output" : "invalid_output";
+        onFailure?.(failure);
         console.warn(JSON.stringify({
-          event: "editor_request_rejected", role, reason: "invalid_editor_output",
+          event: "editor_request_rejected", role, reason: failure,
           durationMs: Date.now() - started,
         }));
         return null;
       }
       console.log(JSON.stringify({
-        event: "editor_request_complete", role, rung: reply.rung, durationMs: Date.now() - started,
+        event: "editor_request_complete", role, providerCalls: reply.providerCalls,
+        providerAttempts: safeProviderAttempts(payload), durationMs: Date.now() - started,
       }));
       return reply;
     }, Math.min(REQUEST_TIMEOUT_MS, remaining), control);
   } catch (error) {
     if (error instanceof HostedBudgetError || error instanceof PipelineCancelledError) throw error;
+    const failure: EditorFailure = error instanceof Error && error.message === "editor_secret_unavailable"
+      ? "configuration" : error instanceof EditorInvalidResponseError ? "invalid_output"
+        : error instanceof Error && error.message === "upstream_deadline" ? "timeout" : "transport";
+    onFailure?.(failure);
     console.warn(JSON.stringify({
       event: "editor_request_unavailable", role,
-      reason: error instanceof Error
-        ? error.message === "editor_secret_unavailable" ? "editor_secret_unavailable" : error.name
-        : "unknown",
+      reason: failure,
       durationMs: Date.now() - started,
     }));
     return null;
+  } finally {
+    // A binding may complete after the deadline. Its late result cannot alter
+    // diagnostics already returned with the selected pipeline result.
+    active = false;
   }
 }

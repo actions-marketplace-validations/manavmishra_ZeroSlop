@@ -1,8 +1,10 @@
-import { callRole } from "./model";
+import { callRole, type EditorFailure } from "./model";
 import { checkCancelled } from "./cancellation";
 import { MAX_DRAFT_CHARS } from "./contract";
 import { rankRewrites, scoreWriting } from "./scorer";
 import type { Genre, PipelineResult, RankedRewrite, WritingReport } from "./types";
+import type { EditorDiagnostics } from "./editor-diagnostics";
+import { cleanTextHygiene, reverseTextHygiene } from "../../../bin/lib/text-hygiene.mjs";
 
 const SCORE_GATE = 25;
 const PIPELINE_BUDGET_MS = 75_000;
@@ -11,6 +13,7 @@ export type DeslopInput = {
   text: string;
   genre: Genre;
   audience?: string;
+  operation?: "clean_text";
 };
 
 export function scorerGuidance(report: WritingReport): string {
@@ -110,14 +113,80 @@ export function meetsReleaseGate(report: WritingReport): boolean {
 export function localRescue(text: string): string {
   const original = String(text || "").trim();
   const protectedSpans: string[] = [];
-  const masked = original.replace(
-    /\x60{3}[\s\S]*?\x60{3}|\x60[^\x60\n]+\x60|\[[^\]\n]+\]\([^)]+\)|https?:\/\/[^\s<]+|“[^”\n]*”|‘[^’\n]*’|"[^"\n]*"/g,
-    (value) => {
-      const token = `\uE000${protectedSpans.length}\uE001`;
-      protectedSpans.push(value);
-      return token;
-    },
-  );
+  const base = [...original.matchAll(
+    /\x60{3}[\s\S]*?\x60{3}|^[ \t]*>[^\n]*(?:\n[ \t]*>[^\n]*)*|\x60[^\x60\n]+\x60|\[[^\]\n]+\]\([^)]+\)|https?:\/\/[^\s<]+/gm,
+  )].map((match): [number, number] => {
+    let end = match.index + match[0].length;
+    if (/^https?:\/\//.test(match[0])) {
+      // Adjacent closing prose quotes belong to the quotation scanner.
+      const boundary = /["'“”‘’][.!?,;:)]*$/.exec(match[0]);
+      if (boundary) end = match.index + boundary.index;
+    }
+    return [match.index, end];
+  });
+  const quotes: Array<Array<[number, number]>> = [[], [], [], []];
+  const opened: Array<number | null> = [null, null, null, null];
+  const word = (char: string) => Boolean(char) && /[A-Za-z0-9_]/.test(char);
+  let baseIndex = 0;
+  // Scan each delimiter once. Unmatched openers do not repeatedly scan the
+  // remaining text; independent quote types can still close later spans.
+  for (let index = 0; index < original.length; index++) {
+    while (baseIndex < base.length && index >= base[baseIndex]![1]) baseIndex++;
+    const inBase = baseIndex < base.length && base[baseIndex]![0] <= index;
+    if (inBase) continue;
+    const char = original[index];
+    const previous = original[index - 1] ?? "";
+    const following = original[index + 1] ?? "";
+    let kind: number | null = null;
+    let starts = false;
+    let closes = false;
+    if (char === "“") { kind = 0; starts = true; }
+    else if (char === "”") { kind = 0; closes = true; }
+    else if (char === "‘") { kind = 1; starts = true; }
+    else if (char === "’") { kind = 1; closes = !(word(previous) && word(following)); }
+    else if (char === '"') { kind = 2; starts = true; closes = true; }
+    else if (char === "'") { kind = 3; starts = !word(previous); closes = !word(following); }
+    if (kind === null) continue;
+    const start = opened[kind];
+    if (start !== null && start !== undefined && closes) {
+      quotes[kind]!.push([start, index + 1]);
+      opened[kind] = null;
+    } else if (start === null && starts) {
+      opened[kind] = index;
+    }
+  }
+  // Preserve an unmatched quoted suffix rather than guessing its endpoint.
+  for (let kind = 0; kind < opened.length; kind++) {
+    const start = opened[kind];
+    if (start !== null && start !== undefined) quotes[kind]!.push([start, original.length]);
+  }
+  // Fixed five-way merge is linear, preserving nested quotes and any code or
+  // links they contain without restoring nested placeholder tokens.
+  const lists = [base, ...quotes];
+  const positions = lists.map(() => 0);
+  const ranges: Array<[number, number]> = [];
+  while (true) {
+    let selected = -1;
+    for (let kind = 0; kind < lists.length; kind++) {
+      const span = lists[kind]![positions[kind]!];
+      if (span && (selected < 0 || span[0] < lists[selected]![positions[selected]!]![0])) selected = kind;
+    }
+    if (selected < 0) break;
+    const [start, end] = lists[selected]![positions[selected]!]!;
+    positions[selected]!++;
+    const last = ranges.at(-1);
+    if (last && start <= last[1]) last[1] = Math.max(last[1], end);
+    else ranges.push([start, end]);
+  }
+  const parts: string[] = [];
+  let cursor = 0;
+  for (const [start, end] of ranges) {
+    parts.push(original.slice(cursor, start), `\uE000${protectedSpans.length}\uE001`);
+    protectedSpans.push(original.slice(start, end));
+    cursor = end;
+  }
+  parts.push(original.slice(cursor));
+  const masked = parts.join("");
   let out = masked.replace(/[\u00A0\u202F]/g, " ");
   // Drop only a complete introductory clause. Replacing it with "Today"
   // would turn generic framing into a claim about when the event happened.
@@ -135,6 +204,12 @@ export function localRescue(text: string): string {
   out = out.replace(
     /(^|[.!?][ \t\r\n]+|\r?\n[ \t]*\r?\n[ \t]*)as we move forward,[ \t]+the team will\b/gi,
     (_match, prefix: string) => prefix + "The team will",
+  );
+  // Remove one hype modifier without substituting emotion or paraphrasing
+  // an unspecified benefit. Preserve the announcement and its exact subject.
+  out = out.replace(
+    /(^|[.!?][ \t\r\n]+|\r?\n[ \t]*\r?\n[ \t]*)([Ww]e)(['’]re| are) thrilled to announce a game[-\u2011]changing update\b/g,
+    (_match, prefix: string, subject: string, verb: string) => prefix + subject + verb + " thrilled to announce an update",
   );
   const changes: Array<[RegExp, string | ((...args: string[]) => string)]> = [
     [/\bwe are thrilled to unveil ([^,\n]+),\s+a transformative release that redefines what is possible in ([^.]+)\./gi,
@@ -245,14 +320,42 @@ function unchanged(
   };
 }
 
+function editorFailureNote(reason: EditorFailure | null): string {
+  switch (reason) {
+    case "timeout": return "the editor request timed out";
+    case "cancelled": return "the editor service cancelled the request";
+    case "deadline": return "the editor request could not start within its deadline";
+    case "configuration": return "the editor service configuration was unavailable";
+    case "invalid_output": return "the editor service returned unusable output";
+    case "unchanged_output": return "the model returned the original text";
+    case "transport": return "the editor request failed before a usable response arrived";
+    default: return "the editor service was unavailable";
+  }
+}
+
 export async function runPipeline(env: Env, input: DeslopInput, clientAddress = "", signal?: AbortSignal): Promise<PipelineResult> {
   const started = Date.now();
   const deadline = started + PIPELINE_BUDGET_MS;
   const control = { signal, editorRequested: false, deadline };
   checkCancelled(control);
-  const original = input.text.trim();
+  const original = input.operation === "clean_text" ? input.text : input.text.trim();
   const before = await scoreWriting(env, original, input.genre, control);
   checkCancelled(control);
+
+  if (input.operation === "clean_text") {
+    const hygiene = cleanTextHygiene(original);
+    if (reverseTextHygiene(hygiene.text, hygiene.edits) !== original) throw new Error("Text cleanup verification failed.");
+    const after = hygiene.edits.length ? await scoreWriting(env, hygiene.text, input.genre, control) : before;
+    checkCancelled(control);
+    return {
+      ...unchanged(hygiene.text, hygiene.edits.length ? "rewritten_with_warnings" : "unchanged_no_better_version", before, started, env.SCORER_VERSION,
+        hygiene.edits.length
+          ? `Removed ${hygiene.edits.length} supported copy-and-paste characters. This was local character cleanup, not an editorial review. Statistical watermark removal has not been verified.`
+          : "No supported character cleanup was needed. Ambiguous formatting was preserved. Statistical watermark removal has not been verified."),
+      after,
+      scoreChange: Math.round((after.score - before.score) * 10) / 10,
+    };
+  }
 
   // A short clean note should not incur an AI call merely because document-
   // level statistics need more words. Positive findings still force an edit.
@@ -273,9 +376,13 @@ export async function runPipeline(env: Env, input: DeslopInput, clientAddress = 
   // Exactly one outbound editor request. The endpoint may use one bounded
   // alternate provider if its primary cannot return a usable edit.
   let observedProviderCalls: 0 | 1 | 2 | null = null;
+  let editorFailure: EditorFailure | null = null;
+  let editorDiagnostics: EditorDiagnostics | undefined;
   const modelReply = await callRole(env, "complete", original, diagnostics, deadline, clientAddress, control,
-    (count) => { observedProviderCalls = count; });
+    (count) => { observedProviderCalls = count; }, (reason) => { editorFailure = reason; },
+    (observed) => { editorDiagnostics = observed; });
   checkCancelled(control);
+  const resultDiagnostics = editorDiagnostics ? { editorDiagnostics } : {};
   const rescue = localRescue(original);
   const candidates: Record<string, string> = {};
   const cleanedModelReply = modelReply?.text ? localRescue(modelReply.text) : "";
@@ -289,10 +396,15 @@ export async function runPipeline(env: Env, input: DeslopInput, clientAddress = 
   if (Object.keys(candidates).length === 0) {
     return {
       ...unchanged(
-        original, "unchanged_service_unavailable", before, started, env.SCORER_VERSION,
-        "The single model request did not return a usable edit, and the conservative local editor found no safe textual change.",
+        original, modelReply ? "unchanged_no_better_version" : "unchanged_service_unavailable", before, started, env.SCORER_VERSION,
+        modelReply
+          ? !withinScorerLimit(cleanedModelReply)
+            ? "Zero Slop kept the original because the model edit exceeded the scorer's input limit, and the local editor found no safe textual change."
+            : "Zero Slop kept the original because the model response yielded no distinct edit after local cleanup, and the local editor found no safe textual change."
+          : `Zero Slop kept the original because ${editorFailureNote(editorFailure)}, and the conservative local editor found no safe textual change.`,
       ),
       modelRequests: modelReply?.providerCalls ?? observedProviderCalls ?? 1,
+      ...resultDiagnostics,
     };
   }
 
@@ -300,6 +412,15 @@ export async function runPipeline(env: Env, input: DeslopInput, clientAddress = 
     && sourceClaimRisk(original, candidates["one-call edit"]));
   let checked = await rankRewrites(env, original, candidates, input.genre, control);
   checkCancelled(control);
+  // Record the model verdict before a local-only rerank drops that candidate.
+  // This contains fixed categories only: never source spans or provider errors.
+  const modelSourceRejected = checked.ranked.some((candidate) =>
+    candidate.name === "one-call edit" && (!candidate.preserved || candidate.invented));
+  const safeModelEdit = checked.ranked.some((candidate) =>
+    candidate.name === "one-call edit" && candidate.preserved && !candidate.invented);
+  if (modelSourceRejected || modelClaimUncertain) {
+    console.warn(JSON.stringify({ event: "editor_source_rejected", reason: modelClaimUncertain ? "claim_changed" : "protected_source_changed" }));
+  }
   if ((!sourceSafe(checked) || sourceClaimRisk(original, checked.text)) && candidates["local edit"]) {
     const localOnly = await rankRewrites(env, original, { "local edit": rescue }, input.genre, control);
     checkCancelled(control);
@@ -313,6 +434,7 @@ export async function runPipeline(env: Env, input: DeslopInput, clientAddress = 
       ),
       modelRequests: modelReply?.providerCalls ?? observedProviderCalls ?? 1,
       rolesCompleted: modelReply ? 6 : 2,
+      ...resultDiagnostics,
     };
   }
 
@@ -324,13 +446,18 @@ export async function runPipeline(env: Env, input: DeslopInput, clientAddress = 
   const passed = selectedModelEdit && !claimUncertain && meetsReleaseGate(after);
   const warnings: string[] = [];
   if (!selectedModelEdit) {
-    const safeModelEdit = checked.ranked.some((candidate) =>
-      candidate.name === "one-call edit" && candidate.preserved && !candidate.invented);
     warnings.push(modelClaimUncertain
       ? "the model response changed a source claim's negation, direction, certainty, or timing, so the local edit was used"
+      : modelSourceRejected
+        ? "the model response did not pass the source check, so the local edit was used"
       : safeModelEdit
         ? "the local edit ranked ahead of a source-preserving model edit on the measured writing checks"
-        : "the model response was unavailable or did not pass the source check, so the local edit was used");
+        : modelReply
+          ? !withinScorerLimit(cleanedModelReply)
+            ? "the model edit exceeded the scorer's input limit, so the local edit was used"
+            : "the model response yielded no distinct edit after local cleanup, so the local edit was used"
+          : `${editorFailureNote(editorFailure)}, so the local edit was used`);
+    warnings.push("the local editor only removes stock wording; meaning, voice, and vague claims still need review");
   }
   if (after.score >= SCORE_GATE) warnings.push("the writing score remains above 25");
   if (after.highWeightFlags > 0) warnings.push("a strong stock-writing signal remains");
@@ -360,5 +487,6 @@ export async function runPipeline(env: Env, input: DeslopInput, clientAddress = 
     note: warnings.length
       ? `Zero Slop returned the safest edited draft. Review it before publishing because ${warnings.join("; ")}.`
       : "One AI editorial response produced the rewrite; local scoring and source checks approved the exact text returned.",
+    ...resultDiagnostics,
   };
 }

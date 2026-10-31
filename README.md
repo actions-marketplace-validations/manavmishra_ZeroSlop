@@ -5,13 +5,16 @@
 
 # Zero Slop
 
-Find and remove AI slop in your writing. Get rid of workslop without losing your core intent and message.
+[![MCPVault: claimed](https://mcpvault.io/badge/zeroslop.svg)](https://mcpvault.io/servers/zeroslop/health?utm_source=external_badge&utm_medium=referral&utm_campaign=mcp_health_report)
+[![MCP Queen operational grade](https://mcpqueen.com/badge/io.github.manavmishra/zero-slop.svg)](https://mcpqueen.com/s/io.github.manavmishra/zero-slop)
 
-Zero Slop is a free, open-source agent skill that finds and removes AI slop while checking that the core details of your message survive the edit. If your AI setup does not support agent skills, [try the browser editor](https://zero-slop.ai/try/) or use our [MCP connector](https://mcp.zero-slop.ai/mcp).
+Remove AI writing patterns from your drafts without losing your core message. Zero Slop is a free, open-source anti-slop skill for Claude Code, Cursor and Codex.
+
+It finds AI slop and workslop, guides the edit, and checks that the key details of your message survive. If your AI setup does not support agent skills, [try the browser editor](https://zero-slop.ai/try/) or use our [MCP connector](https://mcp.zero-slop.ai/mcp).
 
 <p align="center">
   <a href="https://github.com/manavmishra/ZeroSlop/actions/workflows/validate.yml"><img alt="Validate" src="https://github.com/manavmishra/ZeroSlop/actions/workflows/validate.yml/badge.svg"></a>
-  <img alt="Version 2.12.11" src="https://img.shields.io/badge/version-2.12.11-72528F?color=C15732">
+  <img alt="Version 2.12.33" src="https://img.shields.io/badge/version-2.12.33-72528F?color=C15732">
   <a href="https://www.npmjs.com/package/zero-slop"><img alt="npm version" src="https://img.shields.io/npm/v/zero-slop?color=C15732"></a>
   <a href="https://www.npmjs.com/package/zero-slop"><img alt="npm downloads" src="https://img.shields.io/npm/dm/zero-slop?color=17634F"></a>
   <a href="https://github.com/manavmishra/ZeroSlop/stargazers"><img alt="GitHub stars" src="https://img.shields.io/github/stars/manavmishra/ZeroSlop?style=flat&color=C15732"></a>
@@ -50,6 +53,8 @@ Writing score: 9.5/100  [clear]
 ```
 
 ## Quick start
+
+The installed skill can make an optional, metadata-only request to GitHub’s public releases API to check for updates. It sends no draft or private learning data. Set `ZS_NO_UPDATE_CHECK=1` to disable it. Hosted MCP requests are separate and are covered by [our privacy policy](https://zero-slop.ai/privacy/).
 
 You can [try the browser editor](https://zero-slop.ai/try/) without installing anything, install the skill in an assistant that supports skills, or use the hosted service through MCP and the API.
 
@@ -115,7 +120,7 @@ We ran Zero Slop and three other open-source agent skills on our AI Slop test co
 
 ![Writing scores and local checks for a saved, same-model replay of the AI Slop test corpus; lower scores are better](assets/bench-search-rewrites.png)
 
-The [RAID+ audit](bench/raid-plus-corpus/README.md) asks a different question: how much default writing from different models is flagged as AI slop by Zero Slop? The test corpus contains 7,627 anonymous, user-generated transcripts:
+Our [RAID+ audit](bench/raid-plus-corpus/README.md) scored 7,627 non-empty machine-generated abstracts from four models. The [INSCONE project](https://github.com/markstanl/INSCONE) extended RAID by generating new outputs from the original RAID prompts.
 
 | Model | Texts scored | Mean writing score ↓ | At or above 25 |
 |---|---:|---:|---:|
@@ -171,7 +176,7 @@ python3 scripts/slopscore.py --batch drafts/ --gate 25
 The CLI sends a file to the hosted editor without changing the file on disk:
 
 ```sh
-npx --yes zero-slop@2.12.11 deslop draft.md --genre professional
+npx --yes zero-slop@2.12.33 deslop draft.md --genre professional
 ```
 
 Use `-` for stdin and `--json` for structured output. `--require-approved` prints the result but exits nonzero when review is needed. Requires Node.js 22+; offline `score` also needs Python 3. [CLI options and privacy](docs/cli.md).

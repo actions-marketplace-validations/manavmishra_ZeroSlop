@@ -30,6 +30,10 @@ from concurrent.futures import ThreadPoolExecutor
 from datetime import date, timedelta
 from pathlib import Path
 from unittest import mock
+if __package__:
+    from .skill_documents import read_required_skill
+else:
+    from skill_documents import read_required_skill
 
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "scripts"))
@@ -737,7 +741,7 @@ class CommunityReportedSignals(unittest.TestCase):
     that community frequency is a calibrated probability or a safe word list."""
 
     def test_runtime_names_the_reader_salience_pass_and_three_judgment_traits(self):
-        skill = (ROOT / "SKILL.md").read_text().lower()
+        skill = read_required_skill(ROOT).lower()
         tells = (ROOT / "references" / "tells.md").read_text().lower()
         readalong = (ROOT / "references" / "readalong.md").read_text().lower()
         evidence = (ROOT / "references" / "evidence.md").read_text().lower()
@@ -880,7 +884,7 @@ class CommunityReportedSignals(unittest.TestCase):
                 self.assertNotIn(forbidden, names)
 
     def test_incumbent_contextual_checks_are_explicit(self):
-        skill = (ROOT / "SKILL.md").read_text().lower()
+        skill = read_required_skill(ROOT).lower()
         tells = (ROOT / "references" / "tells.md").read_text().lower()
         readalong = (ROOT / "references" / "readalong.md").read_text().lower()
         for phrase in (
@@ -1983,6 +1987,7 @@ class DocsMatchReality(unittest.TestCase):
         cls.docs = {f: (ROOT / f).read_text()
                     for f in ("README.md", "SKILL.md", "ONE-PAGER.md",
                               "assets/engine.svg")}
+        cls.docs["SKILL.md"] = read_required_skill(ROOT)
 
     def _claims(self, text, unit):
         """Every '<number> <unit>' assertion in a document."""
@@ -2099,6 +2104,18 @@ class DocsMatchReality(unittest.TestCase):
                 self.assertIn(asset, readme)
                 self.assertTrue((ROOT / asset).is_file())
         self.assertIn('media="(prefers-reduced-motion: reduce)"', readme)
+
+    def test_readme_raid_plus_description_matches_retained_provenance(self):
+        readme = re.sub(r"\s+", " ", self.docs["README.md"])
+        source = json.loads((ROOT / "bench/raid-plus-corpus/source.json").read_text())
+        result = json.loads((ROOT / "bench/raid-plus-corpus/results.json").read_text())
+        self.assertEqual(result["source"]["scored_rows"], 7627)
+        self.assertEqual(result["domains"]["abstracts"]["documents"], 7627)
+        self.assertIn("7,627 non-empty machine-generated abstracts", readme)
+        self.assertIn(source["project_url"], readme)
+        self.assertIn("INSCONE project", readme)
+        self.assertNotIn("user-generated transcripts", readme)
+        self.assertIn("original RAID prompts", readme)
 
     def test_readme_routes_new_readers_before_developer_reference(self):
         readme = self.docs["README.md"]
@@ -2554,9 +2571,18 @@ class DocsMatchReality(unittest.TestCase):
             with self.subTest(paths=paths), \
                     mock.patch.object(module, "version_at", return_value=current), \
                     mock.patch.object(module, "changed_paths", return_value=paths), \
+                    mock.patch.object(module, "tag_exists", return_value=True), \
                     contextlib.redirect_stdout(io.StringIO()), \
                     contextlib.redirect_stderr(io.StringIO()):
                 self.assertEqual(module.main(["base"]), expected)
+
+        with mock.patch.object(module, "version_at", return_value=current), \
+                mock.patch.object(module, "changed_paths", return_value=["README.md"]), \
+                mock.patch.object(module, "tag_exists", return_value=False), \
+                contextlib.redirect_stdout(io.StringIO()) as output, \
+                contextlib.redirect_stderr(io.StringIO()):
+            self.assertEqual(module.main(["base"]), 0)
+        self.assertIn("is not tagged yet", output.getvalue())
 
     def test_gateway_unit_test_only_edits_do_not_require_a_runtime_release(self):
         spec = importlib.util.spec_from_file_location(
@@ -2585,6 +2611,7 @@ class DocsMatchReality(unittest.TestCase):
             with self.subTest(paths=paths), \
                     mock.patch.object(module, "version_at", return_value=current), \
                     mock.patch.object(module, "changed_paths", return_value=paths), \
+                    mock.patch.object(module, "tag_exists", return_value=True), \
                     contextlib.redirect_stdout(io.StringIO()), \
                     contextlib.redirect_stderr(io.StringIO()):
                 self.assertEqual(module.main(["base"]), expected)
@@ -3261,20 +3288,20 @@ class SearchCorpus(unittest.TestCase):
         # The complete timing record remains validated above; the compact
         # README intentionally omits the detailed performance paragraph.
 
-    def test_version_comparison_record_is_current_and_arithmetically_sound(self):
+    def test_historical_version_comparison_is_source_bound_and_arithmetically_sound(self):
         import hashlib
         import statistics
         sys.path.insert(0, str(ROOT / "bench"))
-        from runtime_compatibility import exact_code_compatible
+        from pinned_runtime import populate
         record = json.loads((ROOT / "bench" / "version-comparison.json").read_text())
         self.assertEqual(record["result_kind"], "interleaved_local_version_comparison")
-        version = json.loads((ROOT / ".codex-plugin" / "plugin.json").read_text())["version"]
-        self.assertTrue(record["candidate"]["version"] == version or
-                        exact_code_compatible(record["candidate"]["version"], version))
-        self.assertEqual(
-            record["candidate"]["slopscore_sha256"],
-            hashlib.sha256(SCORER.read_bytes()).hexdigest(),
-        )
+        self.assertEqual(record["candidate"]["version"], "2.12.13")
+        with tempfile.TemporaryDirectory() as temp:
+            historical = populate(Path(temp), "2.12.13")
+            self.assertEqual(
+                record["candidate"]["slopscore_sha256"],
+                hashlib.sha256((historical / "scripts/slopscore.py").read_bytes()).hexdigest(),
+            )
         timing = record["timing_seconds"]
         old = statistics.median(timing["baseline"])
         new = statistics.median(timing["candidate"])
@@ -3409,9 +3436,36 @@ class RaidPlusCorpusAudit(unittest.TestCase):
             for path in self.ROOT.iterdir()
         ))
 
-    def test_offline_contract_check(self):
-        result = run([str(self.ROOT / "audit.py"), "--check"])
+    def test_historical_offline_contract_check(self):
+        result = run([str(self.ROOT / "audit.py"), "--check-historical"])
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertIn("historical 2.12.12 receipt", result.stdout)
+
+    def test_historical_receipt_does_not_admit_current_changed_scorer(self):
+        result = run([str(self.ROOT / "audit.py"), "--check"])
+        self.assertEqual(result.returncode, 2)
+        self.assertIn("does not match the current scorer", result.stderr)
+
+    def test_historical_receipt_rejects_any_aggregate_or_pin_relabel(self):
+        import copy
+        spec = importlib.util.spec_from_file_location("raid_history_test", self.ROOT / "audit.py")
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        record = json.loads((self.ROOT / "results.json").read_text())
+        pin = json.loads((self.ROOT / "source.json").read_text())
+        for field, value in (("version", "2.12.16"), ("slopscore_sha256", "0" * 64)):
+            altered = copy.deepcopy(record)
+            altered["scorer"][field] = value
+            with self.assertRaisesRegex(ValueError, "changed"):
+                module.validate_historical(altered, pin)
+        altered = copy.deepcopy(record)
+        altered["overall"]["mean_writing_score"] += 1
+        with self.assertRaisesRegex(ValueError, "changed"):
+            module.validate_historical(altered, pin)
+        altered_pin = copy.deepcopy(pin)
+        altered_pin["revision"] = "0" * 40
+        with self.assertRaisesRegex(ValueError, "changed"):
+            module.validate_historical(record, altered_pin)
 
     def test_readme_and_chart_use_the_committed_result(self):
         result = json.loads((self.ROOT / "results.json").read_text())
@@ -3607,8 +3661,36 @@ class CorpusAdmission(unittest.TestCase):
         source = Path.home() / ".zero-slop" / "evals" / "slop-examples.md"
         if not source.exists():
             self.skipTest("private maintainer corpus is not installed on this machine")
-        result = run([str(INTERNAL_CORPUS), "--source", str(source), "--check"])
+        version = json.loads((ROOT / "package.json").read_text())["version"]
+        receipt = ROOT / "bench" / "internal-corpus" / f"results-{version}.json"
+        result = run([str(INTERNAL_CORPUS), "--source", str(source), "--shared-only",
+                      "--out", str(receipt), "--check"])
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+
+    def test_current_private_corpus_receipt_is_release_bound(self):
+        """CI checks the receipt even when the private prose is unavailable."""
+        version = json.loads((ROOT / "package.json").read_text())["version"]
+        receipt = ROOT / "bench" / "internal-corpus" / f"results-{version}.json"
+        report = json.loads(receipt.read_text())
+        self.assertEqual(report["result_kind"], "private_maintainer_regression")
+        self.assertFalse(report["calibrated_accuracy"])
+        self.assertEqual(report["scorer"]["version"], version)
+        self.assertEqual(report["scorer"]["private_preferences"], "excluded")
+        self.assertEqual(report["scorer"]["slopscore_sha256"],
+                         hashlib.sha256(SCORER.read_bytes()).hexdigest())
+        self.assertEqual(report["scorer"]["patterns_sha256"],
+                         hashlib.sha256((DATA / "patterns.json").read_bytes()).hexdigest())
+        registry = json.loads((ROOT / "bench" / "corpus-registry.json").read_text())
+        admission = next(row for row in registry["datasets"]
+                         if row["id"] == "manav-slop-examples")
+        self.assertEqual(admission["status"], "measured")
+        self.assertEqual(admission["source_pin"], "SHA-256 " + report["source"]["sha256"])
+        self.assertFalse(report["source"]["source_committed"])
+        self.assertNotIn("text", json.dumps(report).lower())
+
+    def test_private_2_12_16_receipt_remains_historical(self):
+        receipt = ROOT / "bench/internal-corpus/results-2.12.16.json"
+        self.assertEqual(json.loads(receipt.read_text())["scorer"]["version"], "2.12.16")
 
     def test_private_corpus_report_never_copies_source_prose(self):
         spec = importlib.util.spec_from_file_location("internal_corpus", INTERNAL_CORPUS)
@@ -3623,9 +3705,9 @@ class CorpusAdmission(unittest.TestCase):
 
 
 class FeatureAblation(unittest.TestCase):
-    """The old-versus-new claim stays tied to live data and one production path."""
+    """Historical research stays pinned; current byte-changed code is replayed anew."""
 
-    def test_committed_ablation_is_current_and_caveated(self):
+    def test_historical_ablation_is_source_bound_and_caveated(self):
         result = run([str(FEATURE_ABLATION)])
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
         report = json.loads((ROOT / "bench" / "feature-ablation" / "results.json").read_text())
@@ -3637,6 +3719,10 @@ class FeatureAblation(unittest.TestCase):
         self.assertFalse(report["structured_contextual_research"]["field_accuracy"])
         self.assertIsNone(report["reason_labelled_retrieval"]["accuracy_result"])
         self.assertEqual(report["candidate"]["production_path"], "single")
+
+    def test_fresh_current_release_replay(self):
+        result = run([str(ROOT / "bench/release_replay.py"), "--check"])
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
 
 
 class AIStoryHubCorpusAudit(unittest.TestCase):
@@ -4179,7 +4265,7 @@ class Personalization(unittest.TestCase):
 
     def test_profile_contract_is_described_without_full_style_claims(self):
         readme = " ".join((ROOT / "README.md").read_text().lower().split())
-        skill = " ".join((ROOT / "SKILL.md").read_text().lower().split())
+        skill = " ".join(read_required_skill(ROOT).lower().split())
         page = " ".join(
             (ROOT / "website" / "app" / "page.tsx").read_text().lower().split()
         )
@@ -4298,6 +4384,15 @@ class Diagram(unittest.TestCase):
             self.assertIn(f"# FILE: {required}", bundle,
                           f"single-file installs cannot run {required}")
 
+    def test_single_file_bundle_contains_required_workflow(self):
+        bundle = (ROOT / "dist" / "zero-slop-single-file.md").read_text()
+        required = "references/detailed-workflow.md"
+        workflow = (ROOT / required).read_text()
+        self.assertTrue(f"# FILE: {required}" in bundle,
+                        "single-file installs need the mandatory workflow inline")
+        self.assertTrue(workflow.rstrip() in bundle,
+                        "the complete mandatory workflow must ship in the bundle")
+
     def test_one_pager_pdf_is_current(self):
         try:
             import reportlab  # noqa: F401
@@ -4343,7 +4438,7 @@ class Diagram(unittest.TestCase):
         self.assertEqual(shipped, {
             "calibrate.py", "learn.py", "predictability.py", "register.py",
             "rerank.py", "rescue.py", "safeio.py", "slopscore.py", "version_check.py",
-            "reader_review.py",
+            "reader_review.py", "text_hygiene.py",
         })
         self.assertFalse((ROOT / "skills" / "zero-slop" / "references" /
                           "contextual-signals.md").exists())

@@ -7,6 +7,7 @@ import json
 import re
 import sys
 from pathlib import Path
+from build_plugin import MCP_RUNTIME, wanted
 
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -33,9 +34,15 @@ def main() -> int:
     version = package.get("version")
     require(isinstance(version, str) and VERSION_RE.fullmatch(version) is not None,
             "package.json has no semantic version", problems)
+    for name in MCP_RUNTIME:
+        require(f"!scripts/{name}" in package.get("files", []),
+                f"npm must exclude the Anthropic-only adapter {name}", problems)
+    require(not any(path.name in MCP_RUNTIME for path in wanted(ROOT / "scripts")),
+            "Anthropic-only adapters leaked into the portable runtime mirror", problems)
 
     manifests = {
         "Claude plugin": load(".claude-plugin/plugin.json"),
+        "Claude hosted plugin": load("distribution/plugins/zero-slop-hosted/.claude-plugin/plugin.json"),
         "Codex plugin": load(".codex-plugin/plugin.json"),
         "Agent Plugin": load("plugin.json"),
         "Gemini extension": load("gemini-extension.json"),
@@ -115,6 +122,15 @@ def main() -> int:
 
     require(manifests["Claude plugin"].get("mcpServers") == "./.mcp.json",
             "Claude plugin does not bundle the MCP connector", problems)
+    hosted = manifests["Claude hosted plugin"]
+    require(hosted.get("name") == "zero-slop-hosted" and hosted.get("mcpServers") == "./.mcp.json",
+            "Claude hosted plugin must declare only the hosted MCP connector", problems)
+    require(not any(key in hosted for key in ("skills", "commands", "agents", "hooks", "settings",
+                                             "userConfig", "dependencies", "lspServers", "experimental")),
+            "Claude hosted plugin must not declare local execution or configuration", problems)
+    require(load("distribution/plugins/zero-slop-hosted/.mcp.json") == {
+        "mcpServers": {"zero-slop": {"type": "http", "url": MCP_URL}},
+    }, "Claude hosted plugin must use the exact public HTTP endpoint without credentials", problems)
     require(manifests["Codex plugin"].get("mcpServers") == "./mcp.json",
             "Codex plugin does not bundle the MCP connector", problems)
 

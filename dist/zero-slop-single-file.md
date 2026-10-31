@@ -30,7 +30,7 @@ Source: https://github.com/manavmishra/ZeroSlop   MIT
 name: zero-slop
 license: MIT
 metadata:
-  version: "2.12.11"
+  version: "2.12.33"
   author: manavmishra
 description: Edit drafts into natural prose, inspect AI-sounding patterns, or review how a specified audience might respond passage by passage. Zero Slop runs inside the user's existing AI assistant with local tools that protect source details. Use for humanizing or de-slopping writing, polishing outward-facing prose, social drafts, final editorial checks, or an explicit simulated reader review. Preserve facts, voice and format; reader simulations are hypotheses, not human feedback.
 ---
@@ -60,6 +60,22 @@ semantic checks below enforce that boundary. `references/evidence.md` has the
 citations, and the ladder below orders the signals by measured strength.
 
 ## Hard rules (non-negotiable)
+
+For an explicit character-cleanup request, use the bundled offline text-hygiene
+helper at `scripts/text_hygiene.py` when available. It inspects formatting
+characters and removes only a
+small reviewed set of embedded artifacts in 16 common ASCII prose words.
+Only sentence-shaped lines with conservative prose openers are eligible.
+Recognized code, command syntax, URLs, formulas, quotations and multilingual
+formatting are excluded; these guards are not a complete code parser. Preserve
+uncertain text and use inspection when its purpose is unclear.
+This is a separate local operation, not a replacement for contextual editing.
+Its change record can reverse the exact cleanup. A scriptless assistant must
+not claim byte-level cleanup it did not perform. Character cleanup does not
+verify removal of statistical watermarks from ChatGPT, Claude, Gemini or any
+other model. Preserve required disclosures and attribution.
+In a host that routes local checks through the bundled MCP connector, use its
+`clean_text` tool with the supplied text and optional `inspect: true` instead.
 
 1. **Fidelity.** Meaning, claims, and facts survive exactly. Never invent a
    number, name, anecdote, or experience — and experiential/interior claims
@@ -172,6 +188,71 @@ roles supply contextual judgment and editing. A generating role does not certify
 own factual safety. Role 7 supplies the local release checks; role 8 confirms that the
 result reads cleanly to someone seeing it for the first time. In a one-request service,
 the model's self-check is editorial guidance, not independent verification.
+
+## Detailed workflow
+
+Before starting the eight-role pipeline, read and follow the complete detailed workflow in references/detailed-workflow.md. Keep every rule in this entry and the existing references.
+
+[Detailed workflow](references/detailed-workflow.md)
+
+## References
+
+- `references/reader-review.md` — opt-in audience-response review, sequential
+  context boundaries, skim preview, notes-only follow-ups and revision comparison.
+  `scripts/reader_review.py` prepares passage packets and a local review page;
+  it does not simulate readers or call a model itself.
+- `references/tells.md` — the master taxonomy (115 tells, 6 families) with fixes.
+  It is the human-readable catalogue; `data/patterns.json` is its machine
+  implementation. Together with the reviewed shared overlay, the current
+  release carries 294 weighted regexes because some tells need more than one.
+- `references/rewrite-moves.md` — the positive program: the six ladder rungs
+  expanded, with before/after pairs and voice calibration.
+- `references/platforms.md` — LinkedIn, X/Twitter, email, blog, newsletter,
+  research modules. Read the matching one whenever genre is known.
+- `references/overcorrection.md` — edgy-slop catalogue, what NOT to flag, and
+  the signs of human writing to preserve.
+- `references/readalong.md` — the mandatory, separate read-aloud pass that
+  fixes flow, cohesion, and stumbles directly in the deliverable.
+- `references/fresh-eyes.md` — the first-time-reader finalizer and its bounded
+  one-recheck rule.
+- `references/copy-desk.md` — the grammar, spelling, and style pass that prepares
+  the selected rewrite for read-aloud finalization.
+- `references/eval.md` — the pass/fail checklist for roles 7 and 8. It carries the
+  contextual and register families the meter cannot express as patterns, and it
+  requires the section A counts to be written down rather than judged silently.
+- `references/evidence.md` — the research basis: papers, detector mechanics,
+  and why each ladder rung is ordered where it is.
+- `scripts/rescue.py` — the conservative, no-network availability editor shared by
+  installed skills and the web demo. It returns a changed draft when a known safe edit
+  is available, then leaves approval to the scorer and fact gate.
+
+## Worked example (LinkedIn)
+
+**Before (writing score 100):**
+> 🚀 I'm beyond excited to announce that after 18 months of hard work, we've
+> raised $4.2M to transform how teams ship software! This wasn't just a
+> milestone — it's a testament to our incredible team. Here are 3 lessons I
+> learned along the way… Agree? 👇
+
+**After (writing score 9.5):**
+> We raised $4.2M. It took 18 months, and for the first six of them the demo
+> crashed on stage more often than it ran.
+>
+> Basis Ventures led. The pitch that finally worked wasn't the vision slide.
+> A customer told them our flag rollbacks saved his Black Friday, and that
+> did more than I ever did.
+>
+> Six of us. Hiring two more. The bar: you've shipped something you were
+> scared to ship.
+
+Same facts. No invented ones — the crash detail and customer story came from
+the author, which is the point: when specifics are missing, ask for a real one
+(step 9 flags), never manufacture it.
+
+
+========================================================================
+# FILE: references/detailed-workflow.md
+========================================================================
 
 ## Detailed workflow
 
@@ -1049,60 +1130,6 @@ the draft or future edits in a private overlay.
   weight after 18 unconfirmed months. Maintainers use `calibrate.py --decay` for
   the reviewed shared layer. Run `learn.py --stats` to see shared rules, local
   rules, pending evidence, confirmations, and the live-overlay path.
-
-## References
-
-- `references/reader-review.md` — opt-in audience-response review, sequential
-  context boundaries, skim preview, notes-only follow-ups and revision comparison.
-  `scripts/reader_review.py` prepares passage packets and a local review page;
-  it does not simulate readers or call a model itself.
-- `references/tells.md` — the master taxonomy (115 tells, 6 families) with fixes.
-  It is the human-readable catalogue; `data/patterns.json` is its machine
-  implementation. Together with the reviewed shared overlay, the current
-  release carries 294 weighted regexes because some tells need more than one.
-- `references/rewrite-moves.md` — the positive program: the six ladder rungs
-  expanded, with before/after pairs and voice calibration.
-- `references/platforms.md` — LinkedIn, X/Twitter, email, blog, newsletter,
-  research modules. Read the matching one whenever genre is known.
-- `references/overcorrection.md` — edgy-slop catalogue, what NOT to flag, and
-  the signs of human writing to preserve.
-- `references/readalong.md` — the mandatory, separate read-aloud pass that
-  fixes flow, cohesion, and stumbles directly in the deliverable.
-- `references/fresh-eyes.md` — the first-time-reader finalizer and its bounded
-  one-recheck rule.
-- `references/copy-desk.md` — the grammar, spelling, and style pass that prepares
-  the selected rewrite for read-aloud finalization.
-- `references/eval.md` — the pass/fail checklist for roles 7 and 8. It carries the
-  contextual and register families the meter cannot express as patterns, and it
-  requires the section A counts to be written down rather than judged silently.
-- `references/evidence.md` — the research basis: papers, detector mechanics,
-  and why each ladder rung is ordered where it is.
-- `scripts/rescue.py` — the conservative, no-network availability editor shared by
-  installed skills and the web demo. It returns a changed draft when a known safe edit
-  is available, then leaves approval to the scorer and fact gate.
-
-## Worked example (LinkedIn)
-
-**Before (writing score 100):**
-> 🚀 I'm beyond excited to announce that after 18 months of hard work, we've
-> raised $4.2M to transform how teams ship software! This wasn't just a
-> milestone — it's a testament to our incredible team. Here are 3 lessons I
-> learned along the way… Agree? 👇
-
-**After (writing score 9.5):**
-> We raised $4.2M. It took 18 months, and for the first six of them the demo
-> crashed on stage more often than it ran.
->
-> Basis Ventures led. The pitch that finally worked wasn't the vision slide.
-> A customer told them our flag rollbacks saved his Black Friday, and that
-> did more than I ever did.
->
-> Six of us. Hiring two more. The bar: you've shipped something you were
-> scared to ship.
-
-Same facts. No invented ones — the crash detail and customer story came from
-the author, which is the point: when specifics are missing, ask for a real one
-(step 9 flags), never manufacture it.
 
 
 ========================================================================

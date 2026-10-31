@@ -65,15 +65,24 @@ test("Unicode limits match MCP: 20,000 draft and 200 audience code points after 
   assert.throws(() => validateInput({ text: "e\u0301".repeat(10_001) }), { code: "invalid_input" });
 });
 
-test("all 14 fields and all six statuses are preserved without reconstructing the result", async () => {
+test("all 14 required fields, optional diagnostics and six statuses are preserved without reconstruction", async () => {
   const schemaSource = await readFile(join(root, "mcp/gateway/src/contract.ts"), "utf8");
   const schema = schemaSource.split("const deslopOutputSchema = z.object({")[1].split("\n});")[0];
   const keys = [...schema.matchAll(/^  (\w+):/gm)].map((match) => match[1]);
-  assert.equal(keys.length, 14);
+  const requiredKeys = keys.filter(key => key !== "editorDiagnostics");
+  assert.equal(requiredKeys.length, 14);
+  assert.deepEqual(keys.filter(key => !requiredKeys.includes(key)), ["editorDiagnostics"]);
+  assert.match(schema, /editorDiagnostics: editorDiagnosticsSchema\.optional\(\)/);
   for (const status of RESULT_STATUSES) {
     const value = result(status);
-    assert.deepEqual(Object.keys(value), keys);
+    assert.deepEqual(Object.keys(value), requiredKeys);
     assert.equal(validateResult(value), value);
+    const extended = { ...value, editorDiagnostics: { endpointHttpStatus: 503, providerAttempts: [
+      { provider: "openrouter", outcome: "unavailable", failureStage: "http", httpStatus: 401 },
+    ] } };
+    assert.equal(validateResult(extended), extended);
+    assert.deepEqual(Object.keys(extended), keys);
+    assert.equal(isApprovedResult(extended), isApprovedResult(value));
     assert.ok(schema.includes(`"${status}"`));
   }
 });
@@ -87,7 +96,7 @@ test("malformed structured fields cannot become a successful result", () => {
   }
   for (const mutate of [
     (value) => { value.after.score = NaN; }, (value) => { value.before.score = 101; },
-    (value) => { value.modelRequests = 2; }, (value) => { value.durationMs = -1; },
+    (value) => { value.modelRequests = 3; }, (value) => { value.durationMs = -1; },
     (value) => { value.after.register.findings = [{}]; }, (value) => { value.after.flags = [{}]; },
     (value) => { value.after.register.findings = [{ name: "x", rate: 0, budget: 0, found: 0.5, quote: "x" }]; },
     (value) => { value.after.shape.broetry = "false"; }, (value) => { value.status = "successful"; },
@@ -102,6 +111,19 @@ test("bounded report strings use the same Unicode units as the MCP output schema
   assert.equal(validateResult(value), value);
   value.after.band += "a";
   assert.throws(() => validateResult(value), { code: "invalid_response" });
+});
+
+test("two-provider receipts retain approval and warning states within the hosted attempt limit", () => {
+  for (const modelRequests of [0, 1, 2]) {
+    const value = { ...result(), modelRequests };
+    assert.equal(validateResult(value), value);
+    assert.equal(isApprovedResult(value), true);
+    assert.equal(isApprovedResult({ ...value, status: "rewritten_with_warnings", passedFinalChecks: false }), false);
+    assert.equal(isApprovedResult({ ...value, factsPreserved: false }), false);
+  }
+  for (const modelRequests of [-1, 0.5, 3, Infinity, NaN, "2"]) {
+    assert.throws(() => validateResult({ ...result(), modelRequests }), { code: "invalid_response" });
+  }
 });
 
 test("approval requires preservation and correctly treats already_clear without model checks", () => {

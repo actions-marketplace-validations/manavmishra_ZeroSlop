@@ -1,8 +1,8 @@
 # Zero Slop REST API
 
 `POST https://mcp.zero-slop.ai/v1/deslop` edits one draft through the same pipeline
-as the hosted MCP `deslop` tool. It returns the same 14 fields, including the edit,
-writing scores, source-check result, and review status.
+as the hosted MCP `deslop` tool. Both return the edit, writing scores, source-check
+result, review status, and optional editor diagnostics.
 
 The [OpenAPI 3.1.2 contract](https://mcp.zero-slop.ai/openapi.json) is generated
 from the schemas used to validate MCP and REST requests and results. Import it
@@ -22,9 +22,10 @@ curl --fail-with-body --max-time 75 --include https://mcp.zero-slop.ai/v1/deslop
 
 | Field | Accepted value |
 |---|---|
-| `text` | Required, nonempty string; up to 20,000 Unicode code points after trimming |
+| `text` | Required, nonempty string; up to 20,000 Unicode code points. Editing trims the text first; `clean_text` preserves it and counts its full length. |
 | `genre` | `general` (default), `social`, `email`, `research`, or `professional` |
 | `audience` | Optional string, up to 200 Unicode code points after trimming |
+| `operation` | Optional `"clean_text"` for conservative character cleanup without an editing-model call |
 
 Lengths count Unicode code points; a combined emoji or accented character can contain more than one.
 Send UTF-8 JSON in the body, never a URL query. The body limit is 128 KiB, including
@@ -91,7 +92,7 @@ every check.
 | `unchanged_verification_failed` | Keep the original; proposed edits failed source checks |
 | `unchanged_service_unavailable` | Keep the original; the model did not yield a usable edit |
 
-The successful response contains these 14 fields:
+The successful response retains these 14 required fields:
 
 | Field | Meaning |
 |---|---|
@@ -102,12 +103,29 @@ The successful response contains these 14 fields:
 | `factsPreserved` | Whether tracked source details survived the checks |
 | `passedFinalChecks` | Whether the rewritten text passed the final checks |
 | `independentModelChecks` | Count of independent model checks; currently zero |
-| `modelRequests` | Editing-model requests made, zero or one |
+| `modelRequests` | Provider attempts started, from zero to two; failed attempts count |
 | `rolesCompleted` | Completed pipeline responsibilities |
 | `finishingRounds` | Additional local finishing rounds |
 | `scorerVersion` | Deployed Zero Slop release |
 | `durationMs` | Server processing time in milliseconds |
 | `note` | Review guidance, including any limitations |
+
+The optional `editorDiagnostics` field contains only bounded operational metadata:
+
+| Field | Meaning |
+|---|---|
+| `endpointHttpStatus` | Observed HTTP status from the gateway's editor endpoint, from 100 to 599; distinct from this REST response's status |
+| `providerAttempts` | Up to two ordered attempts reported by the endpoint; each has a fixed `provider` and `outcome` |
+| `providerAttempts[].failureStage` | Optional `invoke`, `fetch`, `http`, or `body` stage reported for a failed attempt |
+| `providerAttempts[].httpStatus` | Optional observed provider HTTP status, from 100 to 599, for an `http` or `body` failure |
+
+Providers are `workers-ai` or `openrouter`. Outcomes are `success`, `timeout`,
+`cancelled`, `capacity`, `invalid_output`, `configuration`, or `unavailable`.
+Missing metadata remains unknown. Absence does not prove that an editor request or
+provider attempt never started. These fields contain no drafts, response bodies,
+headers, credentials, model names, or arbitrary error messages. They do not alter
+rewrite approval, source checks, model-attempt counts, or retry guidance, and are
+not added to aggregate analytics. Already-clear results omit this field.
 
 `scoreChange` is after minus before, so a negative value means the measured score fell.
 The writing score is not a probability that AI wrote the draft.

@@ -2,18 +2,33 @@
 
 ## Runtime boundary
 
-The installed skill ships eight standard-library Python modules:
+The installed skill includes these standard-library Python modules:
 
 | File | Purpose | Writes | Network |
 |---|---|---|---|
 | `scripts/slopscore.py` | score, heatmap, and fidelity checks | one-time interactive-note state under `$ZERO_SLOP_HOME`; never the draft | none |
 | `scripts/register.py` | document-level measurements and validated final-review packets | none | none |
+| `scripts/reader_review.py` | prepare and report simulated reader-review packets | none | none |
+| `scripts/rescue.py` | conservative deterministic editing fallback | none | none |
+| `scripts/text_hygiene.py` | inspect copy artifacts and apply conservative, reversible character cleanup | none | none |
 | `scripts/predictability.py` | create and score deterministic cloze probes | none | none |
 | `scripts/rerank.py` | rank candidate rewrites | optional user-selected output | none |
 | `scripts/learn.py` | private online learning, named scoring profiles, reviewed imports/exports | `$ZERO_SLOP_HOME`; shared taxonomy only through explicit maintainer `--merge --apply` | none |
 | `scripts/calibrate.py` | corpus calibration and shared-pattern maintenance | explicit calibration output or shared learned data | none |
 | `scripts/safeio.py` | locks and atomic file replacement | only on behalf of the two writers above | none |
 | `scripts/version_check.py` | optional release check | none | one metadata-only GitHub API request |
+
+The Anthropic plugin folder additionally carries three host execution adapters:
+`mcp_stdio.py`, `mcp_local_tools.py`, and `mcp_workflow_tools.py`. They expose the
+existing local checks through a declared stdio MCP server; they do not run shell
+commands or accept caller-selected file paths. Learning writes still require
+affirmative consent, with separate consent for activation. The optional version
+tool uses the same metadata-only release check. These adapters and their routing
+overlay are absent from the portable skill, npm package, and OpenAI ZIP. The
+Anthropic folder retains the separate remote connector for explicitly requested
+hosted editing; local checks do not automatically invoke it.
+The declared Python entry point in a repository subfolder can be held for manual
+directory review. A declaration or local test does not establish scan approval.
 
 These local Python checks do not transmit the draft. Editing inside an assistant
 follows that assistant's privacy settings. The version checker sends only a GET

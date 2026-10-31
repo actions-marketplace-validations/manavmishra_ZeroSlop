@@ -38,12 +38,24 @@ function request(body: unknown, headers: Record<string, string> = {}) {
 }
 const neverRun = async (): Promise<PipelineResult> => { throw new Error("pipeline must not run"); };
 
+test("REST forwards an explicit local cleanup operation without changing the output contract", async () => {
+  const { env } = environment(); const { ctx, pending } = context();
+  const response = await handleRest(request({ text: "The te\u200bxt is clear.", operation: "clean_text" }), env, ctx, async (_env, input) => {
+    assert.equal(input.operation, "clean_text");
+    return result;
+  });
+  assert.equal(response.status, 200);
+  await Promise.all(pending);
+});
+
 test("OpenAPI derives its complete input/output contract from runtime schemas", () => {
   const document = openApiDocument("2.10.0");
   assert.equal(document.openapi, "3.1.2");
   assert.equal(document.info.version, "2.10.0");
   assert.equal(document.paths["/v1/deslop"].post.operationId, "deslop");
   const input = document.components.schemas.DeslopInput;
+  assert.equal(input.type, "object");
+  assert.ok(input.properties?.operation);
   assert.equal(typeof input.properties?.text === "object" && input.properties.text.maxLength, 20_000);
   assert.equal(typeof input.properties?.audience === "object" && input.properties.audience.maxLength, 200);
   assert.deepEqual(input.required, ["text"]);
@@ -74,6 +86,28 @@ test("all six MCP outcomes preserve all fields over REST, including unapproved o
     assert.match(response.headers.get("x-request-id") ?? "", /^[0-9a-f-]{36}$/);
     await Promise.all(pending);
   }
+});
+
+test("REST preserves optional safe editor diagnostics without adding them to aggregate analytics", async () => {
+  const editorDiagnostics = {
+    endpointHttpStatus: 503,
+    providerAttempts: [
+      { provider: "workers-ai" as const, outcome: "invalid_output" as const },
+      { provider: "openrouter" as const, outcome: "unavailable" as const, failureStage: "http" as const, httpStatus: 401 },
+    ],
+  };
+  for (const status of deslopOutputSchema.shape.status.options.filter(value => value !== "already_clear")) {
+    const { env, points } = environment(); const { ctx, pending } = context();
+    const expected = { ...result, status, modelRequests: 2, editorDiagnostics };
+    const response = await handleRest(request({ text: "draft" }), env, ctx, async () => expected);
+    assert.equal(response.status, 200);
+    assert.deepEqual(await response.json(), expected);
+    assert.doesNotMatch(JSON.stringify(points), /editorDiagnostics|providerAttempts|workers-ai|openrouter|endpointHttpStatus|failureStage/);
+    await Promise.all(pending);
+  }
+  const spec = openApiDocument("2.12.25").components.schemas.DeslopResult;
+  assert.ok(spec.properties?.editorDiagnostics);
+  assert.ok(!spec.required?.includes("editorDiagnostics"));
 });
 
 test("invalid inputs cannot invoke the pipeline or consume inference capacity", async () => {
